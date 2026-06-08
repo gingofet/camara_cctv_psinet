@@ -1,2 +1,9 @@
 # camara_cctv_psinet
-Aplicación para poder sacar fotos de mantenimientos a equipos cctv que se encuentran en la subterránea, nombrandola directamente según su área y agregando fechas, turno y sector.
+Aplicación Android para gestión de evidencias fotográficas de mantenciones CCTV.
+
+Funciones:
+- Selección de área.
+- Captura fotográfica.
+- Nomenclatura automática.
+- Exportación de evidencias.
+- Integración futura con PSINet.
