@@ -1,0 +1,23 @@
+# Credenciales
+.env
+automatizacion/.env
+
+# Fotos y evidencias
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Carpetas de trabajo
+automatizacion/fotos/
+downloads/
+
+# Archivos generados
+automatizacion/plan_ejecucion.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Playwright
+.playwright/
