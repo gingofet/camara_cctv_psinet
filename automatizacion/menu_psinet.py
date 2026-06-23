@@ -1,46 +1,151 @@
+"""
+Proyecto: Cámara CCTV PSINet
+Archivo: menu_psinet.py
+
+Descripción:
+Módulo encargado de mostrar un menú por terminal para generar una vista previa
+de tareas de mantenimiento CCTV.
+
+Permite:
+- Seleccionar un sector completo.
+- Seleccionar cámaras/áreas manualmente.
+- Calcular horarios automáticos por cada cámara.
+- Mostrar un resumen antes de generar o automatizar tareas en PSINet.
+
+Este archivo NO crea tareas en PSINet.
+Solo prepara y muestra la planificación.
+"""
+
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
+
+
+# ==========================================================
+# RUTAS BASE DEL PROYECTO
+# ==========================================================
+# BASE_DIR apunta a la carpeta actual:
+# camara_cctv_psinet/automatizacion/
+#
+# Desde aquí se construyen las rutas de:
+# - sectores.json: catálogo de cámaras por sector.
+# - config.json: configuración general del sistema.
 
 BASE_DIR = Path(__file__).resolve().parent
 SECTORES_PATH = BASE_DIR / "data" / "sectores.json"
 CONFIG_PATH = BASE_DIR / "config.json"
 
 
+# ==========================================================
+# UTILIDADES GENERALES
+# ==========================================================
+
 def cargar_json(path):
+    """
+    Carga un archivo JSON y devuelve su contenido como diccionario/lista Python.
+
+    Parámetros:
+        path: Ruta del archivo JSON.
+
+    Retorna:
+        Contenido del archivo JSON.
+    """
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def calcular_horarios(areas, hora_inicio, duracion_minutos):
+    """
+    Calcula el horario de inicio y fin para cada cámara/área.
+
+    Ejemplo:
+        areas = ["13 BIN 2", "14 Bin Exterior 5"]
+        hora_inicio = "11:00"
+        duracion_minutos = 10
+
+    Resultado:
+        13 BIN 2            -> 11:00 a 11:10
+        14 Bin Exterior 5   -> 11:10 a 11:20
+
+    Parámetros:
+        areas: Lista de nombres de cámaras/áreas.
+        hora_inicio: Hora inicial en formato HH:MM.
+        duracion_minutos: Duración asignada por cámara.
+
+    Retorna:
+        Lista de diccionarios con área, inicio y fin.
+    """
     inicio = datetime.strptime(hora_inicio, "%H:%M")
     resultado = []
 
     for area in areas:
         fin = inicio + timedelta(minutes=duracion_minutos)
+
         resultado.append({
             "area": area,
             "inicio": inicio.strftime("%H:%M"),
             "fin": fin.strftime("%H:%M")
         })
+
+        # La siguiente cámara comienza cuando termina la anterior.
         inicio = fin
 
     return resultado
 
 
+# ==========================================================
+# SELECCIÓN POR SECTOR
+# ==========================================================
+
 def elegir_sector(sectores):
+    """
+    Muestra los sectores disponibles y permite elegir uno.
+
+    Parámetros:
+        sectores: Diccionario con sectores como claves y listas de cámaras como valores.
+
+    Retorna:
+        Nombre del sector seleccionado.
+    """
     nombres = list(sectores.keys())
 
     print("\nSectores disponibles:\n")
+
     for i, sector in enumerate(nombres, start=1):
-        print(f"{i}. {sector} ({len(sectores[sector])} cámaras)")
+        cantidad_camaras = len(sectores[sector])
+        print(f"{i}. {sector} ({cantidad_camaras} cámaras)")
 
     opcion = int(input("\nElige sector: "))
+
     return nombres[opcion - 1]
 
 
+# ==========================================================
+# SELECCIÓN MANUAL DE CÁMARAS
+# ==========================================================
+
 def elegir_manual(sectores):
+    """
+    Permite buscar cámaras/áreas por texto y seleccionar una o varias manualmente.
+
+    Ejemplo:
+        Buscar: bin
+
+        Resultado:
+            1. [BIN] 13 Bin
+            2. [BIN] 13 BIN 2
+            3. [BIN] Porton Eje 16 Bin
+
+        Selección:
+            1,3
+
+    Retorna:
+        Lista de áreas seleccionadas.
+    """
     todas = []
+
+    # Convierte el catálogo por sector en una lista plana:
+    # [(sector, area), (sector, area), ...]
     for sector, areas in sectores.items():
         for area in areas:
             todas.append((sector, area))
@@ -58,16 +163,34 @@ def elegir_manual(sectores):
         return []
 
     print("\nResultados:\n")
+
     for i, (sector, area) in enumerate(resultados, start=1):
         print(f"{i}. [{sector}] {area}")
 
-    seleccion = input("\nElige números separados por coma, ejemplo 1,3,5: ").strip()
+    seleccion = input(
+        "\nElige números separados por coma, ejemplo 1,3,5: "
+    ).strip()
 
-    indices = [int(x.strip()) - 1 for x in seleccion.split(",") if x.strip()]
+    indices = [
+        int(x.strip()) - 1
+        for x in seleccion.split(",")
+        if x.strip()
+    ]
+
     return [resultados[i][1] for i in indices]
 
 
+# ==========================================================
+# FLUJO PRINCIPAL
+# ==========================================================
+
 def main():
+    """
+    Punto de entrada del menú.
+
+    Carga sectores y configuración, permite escoger el modo de selección,
+    calcula horarios y muestra un resumen de las tareas a generar.
+    """
     sectores = cargar_json(SECTORES_PATH)
     config = cargar_json(CONFIG_PATH)
 
@@ -80,9 +203,11 @@ def main():
     if opcion == "1":
         sector = elegir_sector(sectores)
         areas = sectores[sector]
+
     elif opcion == "2":
         areas = elegir_manual(sectores)
         sector = "MANUAL"
+
     else:
         print("Opción inválida.")
         return

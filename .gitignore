@@ -8,9 +8,11 @@ automatizacion/.env
 *.jpeg
 *.webp
 
+
 # Carpetas de trabajo
 automatizacion/fotos/
 downloads/
+automatizacion/evidencias.json
 
 # Archivos generados
 automatizacion/plan_ejecucion.json
