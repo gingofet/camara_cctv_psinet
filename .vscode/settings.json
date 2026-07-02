@@ -1,10 +1,6 @@
 {
-  "terminal.integrated.defaultProfile.linux": "Devbox CCTV",
+  "terminal.integrated.defaultProfile.linux": "bash",
   "terminal.integrated.profiles.linux": {
-    "Devbox CCTV": {
-      "path": "/usr/bin/distrobox-enter",
-      "args": ["desarrollo-cctv"]
-    },
     "bash": {
       "path": "/usr/bin/bash"
     }

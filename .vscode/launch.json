@@ -1,0 +1,33 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Menu PSINet",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/automatizacion/menu_psinet.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Lector Fotos",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/automatizacion/lector_fotos.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Generar Plan",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/automatizacion/generar_plan_desde_fotos.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "PSINet Auto",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/automatizacion/psinet_auto.py",
+            "console": "integratedTerminal"
+        }
+    ]
+}

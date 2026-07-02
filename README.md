@@ -1,41 +1,115 @@
-# Cámara CCTV PSINet
+#CCTVFlow
 
-Proyecto orientado a optimizar la gestión de mantenciones preventivas de CCTV en minería subterránea.
+Automatización del flujo de trabajo de mantenciones preventivas de cámaras CCTV para minería subterránea mediante integración con la plataforma PSINet.
 
-## Objetivos
+Objetivo
 
-* Gestionar cámaras y áreas por sector.
-* Generar planes de ejecución automáticos.
-* Organizar evidencias fotográficas.
-* Automatizar la carga de mantenciones en PSINet.
-* Reducir tareas administrativas repetitivas.
+Reducir el tiempo dedicado a tareas administrativas repetitivas durante la gestión de mantenciones preventivas, permitiendo que el personal se enfoque en las actividades de terreno.
 
-## Estado actual
+Funcionalidades
 
-### v0.1
+Actualmente el proyecto permite:
 
-* Catálogo de cámaras y sectores.
-* Menú de selección por sector o manual.
-* Generación automática de horarios.
-* Generación de plan de ejecución JSON.
-* Creación automática de carpetas para evidencias.
+Administración de sectores y cámaras.
+Generación automática de planes de ejecución.
+Organización automática de evidencias fotográficas.
+Asociación fotografía ↔ cámara.
+Preparación automática de información para PSINet.
+Arquitectura
+App Android
+        │
+        ▼
+Captura fotografías
+        │
+        ▼
+runtime/fotos
+        │
+        ▼
+lector_fotos.py
+        │
+        ▼
+runtime/evidencias.json
+        │
+        ▼
+generar_plan_desde_fotos.py
+        │
+        ▼
+runtime/plan_ejecucion.json
+        │
+        ▼
+psinet_auto.py
+        │
+        ▼
+Suite PSINet
+Estructura del proyecto
+camara_cctv_psinet/
 
-### Próximas versiones
+│
+├── automatizacion/
+│   ├── data/
+│   ├── psinet/
+│   ├── utils/
+│   ├── runtime/
+│   ├── menu_psinet.py
+│   ├── lector_fotos.py
+│   ├── generar_plan.py
+│   ├── generar_plan_desde_fotos.py
+│   └── psinet_auto.py
+│
+├── .vscode/
+│
+├── requirements.txt
+│
+└── README.md
+Instalación
+git clone ...
+pip install -r requirements.txt
+playwright install
 
-#### v0.2
+Crear
 
-* Lectura automática de fotografías.
-* Asociación automática fotografía ↔ cámara.
+.env
+Roadmap
+v0.1
 
-#### v0.3
+✔ Menú por sectores
 
-* Automatización de creación de tareas en PSINet.
+✔ Horarios automáticos
 
-#### v0.4
+✔ JSON de ejecución
 
-* Carga automática de evidencias.
+v0.2
 
-#### v1.0
+✔ Asociación automática de fotografías
 
-* Integración con aplicación móvil Android para captura de evidencias.
+✔ Detección de evidencias
 
+v0.3
+
+Automatización PSINet
+
+Creación automática de tareas
+
+v0.4
+
+Subida automática de fotografías
+
+Descarga automática de PDF
+
+v1.0
+
+Aplicación Android
+
+Sincronización automática
+
+Flujo completamente automatizado
+
+Tecnologías
+Python
+Playwright
+VS Code
+Git
+GitHub
+Licencia
+
+Proyecto privado.
