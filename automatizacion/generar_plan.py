@@ -1,82 +1,70 @@
 """
 Proyecto: Cámara CCTV PSINet
-Archivo: generar_plan.py
+Archivo: generar_plan_desde_fotos.py
 
 Descripción:
-Genera un archivo plan_ejecucion.json a partir de una selección de cámaras.
-
-Permite:
-- Generar un plan por sector completo.
-- Generar un plan con cámaras seleccionadas manualmente.
-- Calcular horarios automáticos.
-- Crear la carpeta donde se dejarán las fotos/evidencias.
+Genera plan_ejecucion.json automáticamente usando las fotos detectadas
+por lector_fotos.py.
 """
 
-import json
-from menu_psinet import (
-    cargar_json,
-    elegir_sector,
-    elegir_manual,
-    calcular_horarios,
-    SECTORES_PATH,
-    CONFIG_PATH,
-    BASE_DIR,
-)
+from menu_psinet import CONFIG_PATH, BASE_DIR
+from utils.archivos import cargar_json, guardar_json
+from utils.horarios import calcular_horarios
 
 
+EVIDENCIAS_PATH = BASE_DIR / "evidencias.json"
 PLAN_PATH = BASE_DIR / "plan_ejecucion.json"
 
 
 def main():
-    """
-    Genera el plan de ejecución que luego será usado por Playwright
-    para crear tareas en PSINet.
-    """
-    sectores = cargar_json(SECTORES_PATH)
     config = cargar_json(CONFIG_PATH)
 
-    print("\n=== Generar plan de ejecución PSINet ===")
-    print("1. Ejecutar por sector")
-    print("2. Elegir cámaras manualmente")
-
-    opcion = input("\nOpción: ").strip()
-
-    if opcion == "1":
-        sector = elegir_sector(sectores)
-        areas = sectores[sector]
-
-    elif opcion == "2":
-        sector = "MANUAL"
-        areas = elegir_manual(sectores)
-
-    else:
-        print("Opción inválida.")
+    if not EVIDENCIAS_PATH.exists():
+        print("No existe evidencias.json. Primero ejecuta lector_fotos.py")
         return
+
+    evidencias_data = cargar_json(EVIDENCIAS_PATH)
+    evidencias = evidencias_data.get("evidencias", {})
+
+    if not evidencias:
+        print("No hay evidencias detectadas. Revisa la carpeta fotos/")
+        return
+
+    areas = list(evidencias.keys())
 
     horarios = calcular_horarios(
         areas,
         config["hora_inicio"],
         config["duracion_minutos"],
     )
-
-    carpeta_fotos = BASE_DIR / config["carpeta_fotos"] / sector
-    carpeta_fotos.mkdir(parents=True, exist_ok=True)
-
     plan = {
-        "sector": sector,
+        "sector": "DESDE_FOTOS",
         "modo_guardado": config["modo_guardado"],
         "observacion": config["observacion"],
         "carpeta_fotos": config["carpeta_fotos"],
-        "ruta_fotos": str(carpeta_fotos),
-        "tareas": horarios,
+        "ruta_fotos": str(BASE_DIR / config["carpeta_fotos"]),
+        "tareas": [],
     }
 
-    with open(PLAN_PATH, "w", encoding="utf-8") as f:
-        json.dump(plan, f, ensure_ascii=False, indent=2)
+    for item in horarios:
+        area = item["area"]
+        item["sector"] = evidencias[area]["sector"]
+        item["fotos"] = evidencias[area]["fotos"]
+        plan["tareas"].append(item)
+
+    guardar_json(PLAN_PATH, plan)
+
+    print("\n=== Plan generado desde fotos ===\n")
+
+    for tarea in plan["tareas"]:
+        print(
+            f"{tarea['inicio']} - {tarea['fin']} | "
+            f"[{tarea['sector']}] {tarea['area']} | "
+            f"{len(tarea['fotos'])} foto(s)"
+        )
 
     print(f"\nPlan generado en: {PLAN_PATH}")
-    print(f"Carpeta fotos: {carpeta_fotos}")
-    print(f"Total tareas: {len(horarios)}")
+    print(f"Total tareas: {len(plan['tareas'])}")
 
 
 if __name__ == "__main__":

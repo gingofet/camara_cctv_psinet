@@ -5,23 +5,11 @@ Archivo: generar_plan_desde_fotos.py
 Descripción:
 Genera plan_ejecucion.json automáticamente usando las fotos detectadas
 por lector_fotos.py.
-
-Flujo:
-1. Lee evidencias.json.
-2. Toma las áreas que tienen fotos.
-3. Calcula horarios automáticos.
-4. Genera plan_ejecucion.json listo para PSINet.
 """
 
-import json
-from pathlib import Path
-
-from menu_psinet import (
-    cargar_json,
-    calcular_horarios,
-    CONFIG_PATH,
-    BASE_DIR,
-)
+from menu_psinet import CONFIG_PATH, BASE_DIR
+from utils.archivos import cargar_json, guardar_json
+from utils.horarios import calcular_horarios
 
 
 EVIDENCIAS_PATH = BASE_DIR / "evidencias.json"
@@ -65,8 +53,7 @@ def main():
         item["fotos"] = evidencias[area]["fotos"]
         plan["tareas"].append(item)
 
-    with open(PLAN_PATH, "w", encoding="utf-8") as f:
-        json.dump(plan, f, ensure_ascii=False, indent=2)
+    guardar_json(PLAN_PATH, plan)
 
     print("\n=== Plan generado desde fotos ===\n")
 

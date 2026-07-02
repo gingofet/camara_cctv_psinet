@@ -11,8 +11,8 @@ Este módulo genera evidencias.json, que luego será utilizado por la
 automatización de PSINet para saber qué fotos subir en cada tarea.
 """
 
-import json
-import unicodedata
+from utils.archivos import cargar_json, guardar_json
+from utils.normalizar import normalizar
 from pathlib import Path
 
 
@@ -33,52 +33,6 @@ EXTENSIONES = {".jpg", ".jpeg", ".png", ".webp"}
 # ==========================================================
 # NORMALIZACIÓN DE TEXTO
 # ==========================================================
-
-def normalizar(texto):
-    """
-    Convierte un texto a una versión más fácil de comparar.
-
-    Ejemplo:
-        "20180-Taller BIN-Eje 12 / Eje 18"
-        -> "20180 taller bin eje 12 eje 18"
-
-    Esto permite comparar nombres aunque tengan:
-    - Mayúsculas/minúsculas distintas.
-    - Acentos.
-    - Guiones.
-    - Slash.
-    - Puntos o comas.
-    """
-    texto = texto.lower()
-    texto = unicodedata.normalize("NFD", texto)
-    texto = "".join(
-        c for c in texto
-        if unicodedata.category(c) != "Mn"
-    )
-
-    for char in ["/", "-", "_", ".", ",", "(", ")", "[", "]"]:
-        texto = texto.replace(char, " ")
-
-    return " ".join(texto.split())
-
-
-# ==========================================================
-# CARGA DE DATOS
-# ==========================================================
-
-def cargar_json(path):
-    """
-    Carga un archivo JSON desde disco.
-
-    Parámetros:
-        path: Ruta del archivo JSON.
-
-    Retorna:
-        Contenido del JSON como estructura Python.
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
 
 def obtener_areas(sectores):
     """
@@ -207,16 +161,11 @@ def main():
 
         evidencias[area]["fotos"].append(str(foto))
 
-    with open(EVIDENCIAS_PATH, "w", encoding="utf-8") as f:
-        json.dump(
-            {
-                "evidencias": evidencias,
-                "no_detectadas": no_detectadas,
-            },
-            f,
-            ensure_ascii=False,
-            indent=2,
-        )
+    
+        guardar_json(EVIDENCIAS_PATH, {
+    "evidencias": evidencias,
+    "no_detectadas": no_detectadas,
+})
 
     print("\n=== Evidencias detectadas desde carpeta ===\n")
 

@@ -17,7 +17,8 @@ Solo prepara y muestra la planificación.
 """
 
 import json
-from datetime import datetime, timedelta
+from utils.horarios import calcular_horarios
+from utils.archivos import cargar_json
 from pathlib import Path
 
 
@@ -34,63 +35,6 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 SECTORES_PATH = BASE_DIR / "data" / "sectores.json"
 CONFIG_PATH = BASE_DIR / "config.json"
-
-
-# ==========================================================
-# UTILIDADES GENERALES
-# ==========================================================
-
-def cargar_json(path):
-    """
-    Carga un archivo JSON y devuelve su contenido como diccionario/lista Python.
-
-    Parámetros:
-        path: Ruta del archivo JSON.
-
-    Retorna:
-        Contenido del archivo JSON.
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def calcular_horarios(areas, hora_inicio, duracion_minutos):
-    """
-    Calcula el horario de inicio y fin para cada cámara/área.
-
-    Ejemplo:
-        areas = ["13 BIN 2", "14 Bin Exterior 5"]
-        hora_inicio = "11:00"
-        duracion_minutos = 10
-
-    Resultado:
-        13 BIN 2            -> 11:00 a 11:10
-        14 Bin Exterior 5   -> 11:10 a 11:20
-
-    Parámetros:
-        areas: Lista de nombres de cámaras/áreas.
-        hora_inicio: Hora inicial en formato HH:MM.
-        duracion_minutos: Duración asignada por cámara.
-
-    Retorna:
-        Lista de diccionarios con área, inicio y fin.
-    """
-    inicio = datetime.strptime(hora_inicio, "%H:%M")
-    resultado = []
-
-    for area in areas:
-        fin = inicio + timedelta(minutes=duracion_minutos)
-
-        resultado.append({
-            "area": area,
-            "inicio": inicio.strftime("%H:%M"),
-            "fin": fin.strftime("%H:%M")
-        })
-
-        # La siguiente cámara comienza cuando termina la anterior.
-        inicio = fin
-
-    return resultado
 
 
 # ==========================================================
