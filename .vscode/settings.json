@@ -1,0 +1,15 @@
+{
+  "terminal.integrated.defaultProfile.linux": "Devbox CCTV",
+  "terminal.integrated.profiles.linux": {
+    "Devbox CCTV": {
+      "path": "/usr/bin/distrobox-enter",
+      "args": ["desarrollo-cctv"]
+    },
+    "bash": {
+      "path": "/usr/bin/bash"
+    }
+  },
+  "python.defaultInterpreterPath": "/usr/bin/python3",
+  "python.analysis.typeCheckingMode": "basic",
+  "editor.formatOnSave": true
+}
