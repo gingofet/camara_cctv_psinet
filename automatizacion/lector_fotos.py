@@ -126,15 +126,16 @@ def detectar_area_en_foto(foto, areas):
     Usa el nombre del archivo, sin extensión, y lo compara contra todas las
     áreas registradas en sectores.json.
 
-    Ejemplo:
-        Archivo:
-            "13 BIN 2_001.jpg"
-
-        Área detectada:
-            "13 BIN 2"
-
     Si existen varias coincidencias, se escoge la más larga/específica.
-    Esto evita que un nombre corto como "13 Bin" gane sobre "13 BIN 2".
+
+    Además, evita aceptar coincidencias demasiado genéricas cuando el nombre
+    de la foto tiene más información que el área detectada.
+
+    Ejemplo a evitar:
+        Foto: "13 BIN exterior 5.jpg"
+        Área genérica: "13 Bin"
+
+    En ese caso, se considera dudosa y no se asigna automáticamente.
     """
     nombre_foto = normalizar(foto.stem)
     coincidencias = []
@@ -153,8 +154,18 @@ def detectar_area_en_foto(foto, areas):
         reverse=True,
     )
 
-    return coincidencias[0]
+    mejor = coincidencias[0]
+    area_detectada = mejor["normalizado"]
 
+    palabras_foto = set(nombre_foto.split())
+    palabras_area = set(area_detectada.split())
+
+    palabras_extra = palabras_foto - palabras_area
+
+    if len(palabras_area) <= 2 and palabras_extra:
+        return None
+
+    return mejor
 
 # ==========================================================
 # FLUJO PRINCIPAL
