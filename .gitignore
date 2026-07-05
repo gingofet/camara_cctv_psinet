@@ -23,3 +23,10 @@ __pycache__/
 
 # Playwright
 .playwright/
+
+
+.venv/
+__pycache__/
+*.pyc
+runtime/*.json
+runtime/fotos/
