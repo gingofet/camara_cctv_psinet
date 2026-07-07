@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-
+from psinet.descargas import descargar_pdf_abierto
 from psinet.login import login_psinet
 from psinet.navegador import iniciar_navegador
 from psinet.tareas import crear_mantenimiento
@@ -75,11 +75,14 @@ def main():
 
             input(
                 "Sube las fotos y guarda manualmente. "
-                "Cuando PSINet vuelva al listado de tareas, presiona Enter..."
+                "Cuando se abra el PDF o PSINet vuelva al listado, presiona Enter..."
             )
+
+            descargar_pdf_abierto(page)
 
             hora_actual = evidencia["hora_fin"]
             modo_navegacion = "solo_nueva"
+
 
 
 if __name__ == "__main__":

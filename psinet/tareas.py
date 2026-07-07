@@ -29,6 +29,28 @@ def abrir_nueva_tarea(page: Page):
     page.get_by_text("Nueva", exact=True).click()
     page.wait_for_load_state("networkidle")
 
+def seleccionar_camara(page: Page, area_busqueda: str, area_psinet: str):
+    campo_busqueda = page.get_by_role("textbox").nth(5)
+
+    campo_busqueda.fill(area_busqueda)
+    page.wait_for_timeout(800)
+
+    opcion = page.get_by_role("treeitem", name=area_psinet)
+
+    if opcion.count() == 0 and len(area_busqueda) > 1:
+        campo_busqueda.press("Backspace")
+        page.wait_for_timeout(800)
+        opcion = page.get_by_role("treeitem", name=area_psinet)
+
+    if opcion.count() > 0:
+        opcion.first.click()
+        return
+
+    print("")
+    print("No pude seleccionar la cámara automáticamente.")
+    print("Selecciona la cámara manualmente en PSINet.")
+    print("Cuando la selecciones, presiona Enter aquí para continuar.")
+    input()
 
 def crear_tarea_base(page: Page, area_busqueda: str, area_psinet: str):
     page.get_by_label("", exact=True).nth(1).click()
@@ -38,13 +60,12 @@ def crear_tarea_base(page: Page, area_busqueda: str, area_psinet: str):
     page.get_by_role("treeitem", name="DCH-SUBTE").click()
 
     page.locator("#forms_add_tarea").get_by_label("", exact=True).click()
-    page.get_by_role("textbox").nth(5).fill(area_busqueda)
 
-    print("")
-    print("Selecciona la cámara manualmente en PSINet.")
-    print("Si no aparece, borra y vuelve a escribir hasta que cargue.")
-    print("Cuando la selecciones, presiona Enter aquí para continuar.")
-    input()
+    seleccionar_camara(
+        page=page,
+        area_busqueda=area_busqueda,
+        area_psinet=area_psinet,
+    )
 
     page.locator('input[name="text_observacion_tarea"]').fill(OBSERVACION_DEFAULT)
 
