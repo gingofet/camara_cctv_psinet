@@ -1,0 +1,22 @@
+OBSERVACION_DEFAULT = "Mantenimiento CCTV"
+
+TIPO_TAREA_DEFAULT = "Mantencion Programada"
+
+UBICACION_DEFAULT = "DCH-SUBTE"
+
+TIPO_ACTIVIDAD_DEFAULT = "Mantenimiento Preventivo"
+
+CAUSA_DEFAULT = "CCTV"
+
+RESPONSABLE_DEFAULT = "Louis Rivera"
+
+PARTICIPANTES_DEFAULT = [
+    "Louis Rivera",
+    
+]
+
+APR_PARTICIPA = False
+
+ALZA_HOMBRE = False
+
+MAXIMO_FOTOS = 15
