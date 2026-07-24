@@ -1,53 +1,54 @@
-🚀 CCTVFlow
+# 🚀 CCTVFlow
 
-Automatización asistida de mantenciones preventivas de cámaras CCTV enPSINet.
+> Automatización asistida de mantenciones preventivas de cámaras CCTV en
+> PSINet.
 
-CCTVFlow es una herramienta en Python que automatiza el trabajo administrativoposterior a una mantención preventiva: crea la tarea y su actividad, completa elchecklist, adjunta las fotografías de la ART, guarda el registro y descarga elinforme PDF generado por PSINet.
+CCTVFlow es una herramienta en Python que automatiza el trabajo administrativo
+posterior a una mantención preventiva: crea la tarea y su actividad, completa el
+checklist, adjunta las fotografías de la ART, guarda el registro y descarga el
+informe PDF generado por PSINet.
 
-El navegador se mantiene visible durante la ejecución para que el usuario puedasupervisar el proceso e intervenir cuando sea necesario.
+El navegador se mantiene visible durante la ejecución para que el usuario pueda
+supervisar el proceso e intervenir cuando sea necesario.
 
-Objetivo
+## Objetivo
 
-Reducir el tiempo dedicado a tareas repetitivas en PSINet, minimizar errores dedigitación y mantener un flujo trazable desde las evidencias fotográficas hastael informe final.
+Reducir el tiempo dedicado a tareas repetitivas en PSINet, minimizar errores de
+digitación y mantener un flujo trazable desde las evidencias fotográficas hasta
+el informe final.
 
-Estado actual
+## Estado actual
 
 El motor principal se ejecuta con:
 
+```bash
 python -m psinet_auto_manual
+```
 
 Actualmente permite:
 
-iniciar Chromium e ingresar a PSINet con credenciales locales;
+- iniciar Chromium e ingresar a PSINet con credenciales locales;
+- seleccionar la división antes de comenzar;
+- trabajar con `DCH-SUBTE` y `DRT`;
+- crear tareas de mantención programada y sus actividades;
+- asignar horarios consecutivos de 10 minutos;
+- buscar y seleccionar la cámara correspondiente;
+- seleccionar participantes configurados;
+- completar Estado General y Conexiones;
+- configurar APR y equipo alza hombre;
+- adjuntar automáticamente `ART` y `ART_atras`;
+- dejar disponible un campo para cargar manualmente la foto de la mantención;
+- guardar la actividad y descargar el PDF en `downloads/pdfs/`;
+- procesar varias cámaras dentro de una misma sesión.
 
-seleccionar la división antes de comenzar;
+> [!IMPORTANT]
+> El flujo de DRT continúa en validación en PSINet. El selector dinámico del
+> bloque **CONEXIONES** ya fue implementado para evitar depender de IDs fijos,
+> pero debe verificarse de extremo a extremo antes de considerarlo estable.
 
-trabajar con DCH-SUBTE y DRT;
+## Flujo actual
 
-crear tareas de mantención programada y sus actividades;
-
-asignar horarios consecutivos de 10 minutos;
-
-buscar y seleccionar la cámara correspondiente;
-
-seleccionar participantes configurados;
-
-completar Estado General y Conexiones;
-
-configurar APR y equipo alza hombre;
-
-adjuntar automáticamente ART y ART_atras;
-
-dejar disponible un campo para cargar manualmente la foto de la mantención;
-
-guardar la actividad y descargar el PDF en downloads/pdfs/;
-
-procesar varias cámaras dentro de una misma sesión.
-
-[!IMPORTANT]El flujo de DRT continúa en validación en PSINet. El selector dinámico delbloque CONEXIONES ya fue implementado para evitar depender de IDs fijos,pero debe verificarse de extremo a extremo antes de considerarlo estable.
-
-Flujo actual
-
+```mermaid
 flowchart TD
     A["Seleccionar división y hora"] --> B["Abrir Chromium e iniciar sesión"]
     B --> C["Ingresar cámara"]
@@ -59,9 +60,12 @@ flowchart TD
     H --> I{"¿Otra cámara?"}
     I -->|Sí| C
     I -->|No| J["Finalizar sesión"]
+```
 
-También existe un flujo de preparación de evidencias a partir del nombre de lasfotografías:
+También existe un flujo de preparación de evidencias a partir del nombre de las
+fotografías:
 
+```text
 automatizacion/fotos/
         ↓
 lector_fotos.py
@@ -71,47 +75,52 @@ automatizacion/evidencias.json
 automatizacion/generar_plan_desde_fotos.py
         ↓
 automatizacion/plan_ejecucion.json
+```
 
-El menú python -m automatizacion.menu_psinet permite buscar cámaras, elegir unsector y previsualizar horarios. Por ahora genera solamente la planificación:todavía no inicia Playwright.
+El menú `python -m automatizacion.menu_psinet` permite buscar cámaras, elegir un
+sector y previsualizar horarios. Por ahora genera solamente la planificación:
+todavía no inicia Playwright.
 
-Divisiones y catálogos
+## Divisiones y catálogos
 
-Las divisiones disponibles se definen enautomatizacion/data/config.py:
+Las divisiones disponibles se definen en
+`automatizacion/data/config.py`:
 
-División
+| División | Catálogo |
+| --- | --- |
+| `DCH-SUBTE` | `automatizacion/data/sectores.json` |
+| `DRT` | `automatizacion/data/sectores_drt.json` |
 
-Catálogo
+El catálogo de DRT contiene 156 cámaras distribuidas en 11 áreas. Los nombres
+deben coincidir exactamente con los mostrados por PSINet.
 
-DCH-SUBTE
-
-automatizacion/data/sectores.json
-
-DRT
-
-automatizacion/data/sectores_drt.json
-
-El catálogo de DRT contiene 156 cámaras distribuidas en 11 áreas. Los nombresdeben coincidir exactamente con los mostrados por PSINet.
-
-Fotografías
+## Fotografías
 
 Las imágenes permanentes de la ART deben estar en:
 
+```text
 automatizacion/data/art/
 ├── ART.jpg
 └── ART_atras.jpg
+```
 
-Se admiten extensiones .jpg, .jpeg y .png.
+Se admiten extensiones `.jpg`, `.jpeg` y `.png`.
 
 Para las fotografías de cámaras se utiliza el formato:
 
+```text
 <nombre_camara>_<correlativo>.jpg
+```
 
 Ejemplo:
 
+```text
 20740_Cruce_Rampa_4_0001.jpg
+```
 
-Estructura principal
+## Estructura principal
 
+```text
 camara_cctv_psinet/
 ├── automatizacion/
 │   ├── data/
@@ -134,93 +143,106 @@ camara_cctv_psinet/
 ├── psinet_auto_manual.py
 ├── requirements.txt
 └── todo.md
+```
 
-Instalación
+## Instalación
 
-1. Clonar el repositorio
+### 1. Clonar el repositorio
 
+```bash
 git clone https://github.com/gingofet/camara_cctv_psinet.git
 cd camara_cctv_psinet
+```
 
-2. Crear y activar el entorno virtual
+### 2. Crear y activar el entorno virtual
 
+```bash
 python -m venv .venv
 source .venv/bin/activate
+```
 
 En PowerShell:
 
+```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+```
 
-3. Instalar dependencias
+### 3. Instalar dependencias
 
+```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 playwright install chromium
+```
 
-4. Configurar credenciales
+### 4. Configurar credenciales
 
-Crea un archivo .env en la raíz del proyecto:
+Crea un archivo `.env` en la raíz del proyecto:
 
+```dotenv
 PSINET_URL=https://suite.apps.psinet.cl/login
 PSINET_USER=usuario@ejemplo.cl
 PSINET_PASS=contraseña
+```
 
-El archivo .env está excluido de Git y no debe publicarse.
+El archivo `.env` está excluido de Git y no debe publicarse.
 
-5. Agregar las fotografías de la ART
+### 5. Agregar las fotografías de la ART
 
 Guarda las imágenes como:
 
+```text
 automatizacion/data/art/ART.jpg
 automatizacion/data/art/ART_atras.jpg
+```
 
-6. Ejecutar
+### 6. Ejecutar
 
+```bash
 python -m psinet_auto_manual
+```
 
-Validaciones locales
+## Validaciones locales
 
-Compila solamente el código del proyecto para evitar que compileall inspeccioneplantillas internas de paquetes instalados en .venv:
+Compila solamente el código del proyecto para evitar que `compileall` inspeccione
+plantillas internas de paquetes instalados en `.venv`:
 
+```bash
 python -m compileall -q automatizacion psinet utils \
   lector_fotos.py psinet_auto.py psinet_auto_manual.py
 python -m json.tool automatizacion/data/sectores_drt.json > /dev/null
+```
 
-Arquitectura futura
+## Arquitectura futura
 
 La evolución prevista es una arquitectura híbrida:
 
-CCTVFlow Web: usuarios, roles, dispositivos, trabajos, historial y PDFs.
+- **CCTVFlow Web:** usuarios, roles, dispositivos, trabajos, historial y PDFs.
+- **Agente local:** Playwright visible, credenciales PSINet locales, fotografías
+  y descarga de informes.
+- **Aplicación Android:** captura y nombrado correcto de evidencias en terreno.
 
-Agente local: Playwright visible, credenciales PSINet locales, fotografíasy descarga de informes.
+El motor Playwright continuará ejecutándose en el equipo del usuario, no en el
+servidor.
 
-Aplicación Android: captura y nombrado correcto de evidencias en terreno.
+Consulta el avance y las siguientes tareas en [`todo.md`](todo.md).
 
-El motor Playwright continuará ejecutándose en el equipo del usuario, no en elservidor.
+## Tecnologías
 
-Consulta el avance y las siguientes tareas en todo.md.
+- Python
+- Playwright
+- Chromium
+- PySide6
+- Git y GitHub
 
-Tecnologías
+## Seguridad
 
-Python
+- No publiques `.env`, credenciales, fotografías operacionales ni PDFs.
+- Mantén las credenciales de PSINet únicamente en el equipo local.
+- Revisa siempre `git status` antes de crear un commit.
 
-Playwright
+## Licencia
 
-Chromium
-
-PySide6
-
-Git y GitHub
-
-Seguridad
-
-No publiques .env, credenciales, fotografías operacionales ni PDFs.
-
-Mantén las credenciales de PSINet únicamente en el equipo local.
-
-Revisa siempre git status antes de crear un commit.
-
-Licencia
-
-Este repositorio no incluye todavía una licencia de uso. El código permanecebajo los derechos de su autor.
+Este repositorio no incluye todavía una licencia de uso. El código permanece
+bajo los derechos de su autor.
