@@ -5,15 +5,17 @@ Archivo: lector_fotos.py
 Descripción:
 Lee la carpeta de evidencias fotográficas y detecta automáticamente a qué
 cámara/área pertenece cada foto, comparando el nombre del archivo con el
-catálogo de sectores definido en data/sectores.json.
+catálogo de sectores de la división activa.
 
 Este módulo genera evidencias.json, que luego será utilizado por la
 automatización de PSINet para saber qué fotos subir en cada tarea.
 """
 
-from utils.archivos import cargar_json, guardar_json
-from utils.normalizar import normalizar
 from pathlib import Path
+
+from automatizacion.data.config import SECTORES_PATH
+from utils.archivos import cargar_json, guardar_json
+from utils.normalizar import normalizar_texto as normalizar
 
 
 # ==========================================================
@@ -22,9 +24,9 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 
-SECTORES_PATH = BASE_DIR / "data" / "sectores.json"
-FOTOS_DIR = BASE_DIR / "fotos"
-EVIDENCIAS_PATH = BASE_DIR / "evidencias.json"
+AUTOMATIZACION_DIR = BASE_DIR / "automatizacion"
+FOTOS_DIR = AUTOMATIZACION_DIR / "fotos"
+EVIDENCIAS_PATH = AUTOMATIZACION_DIR / "evidencias.json"
 
 # Extensiones de imagen válidas para evidencias.
 EXTENSIONES = {".jpg", ".jpeg", ".png", ".webp"}
@@ -111,8 +113,8 @@ def detectar_area_en_foto(foto, areas):
     mejor = coincidencias[0]
     area_detectada = mejor["normalizado"]
 
-    palabras_foto = set(nombre_foto.split())
-    palabras_area = set(area_detectada.split())
+    palabras_foto = set(nombre_foto.split("_"))
+    palabras_area = set(area_detectada.split("_"))
 
     palabras_extra = palabras_foto - palabras_area
 
@@ -161,11 +163,13 @@ def main():
 
         evidencias[area]["fotos"].append(str(foto))
 
-    
-        guardar_json(EVIDENCIAS_PATH, {
-    "evidencias": evidencias,
-    "no_detectadas": no_detectadas,
-})
+    guardar_json(
+        EVIDENCIAS_PATH,
+        {
+            "evidencias": evidencias,
+            "no_detectadas": no_detectadas,
+        },
+    )
 
     print("\n=== Evidencias detectadas desde carpeta ===\n")
 

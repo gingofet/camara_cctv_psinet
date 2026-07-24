@@ -16,10 +16,11 @@ Este archivo NO crea tareas en PSINet.
 Solo prepara y muestra la planificación.
 """
 
-import json
-from utils.horarios import calcular_horarios
-from utils.archivos import cargar_json
 from pathlib import Path
+
+from automatizacion.data.config import DIVISION_ACTIVA, SECTORES_PATH
+from utils.archivos import cargar_json
+from utils.horarios import calcular_horarios
 
 
 # ==========================================================
@@ -33,7 +34,6 @@ from pathlib import Path
 # - config.json: configuración general del sistema.
 
 BASE_DIR = Path(__file__).resolve().parent
-SECTORES_PATH = BASE_DIR / "data" / "sectores.json"
 CONFIG_PATH = BASE_DIR / "config.json"
 
 
@@ -139,6 +139,7 @@ def main():
     config = cargar_json(CONFIG_PATH)
 
     print("\n=== PSINet CCTV - Generador de tareas ===")
+    print(f"División activa: {DIVISION_ACTIVA}")
     print("1. Ejecutar por sector")
     print("2. Elegir cámaras manualmente")
 

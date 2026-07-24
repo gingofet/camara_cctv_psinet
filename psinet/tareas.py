@@ -7,21 +7,23 @@ separados para mantener una arquitectura clara y mantenible.
 """
 
 from __future__ import annotations
+
 from collections.abc import Sequence
 import re
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
+
 from automatizacion.data.config import (
+    ALZA_HOMBRE,
+    APR_PARTICIPA,
+    CAUSA_DEFAULT,
+    MAXIMO_FOTOS,
     OBSERVACION_DEFAULT,
+    PARTICIPANTES_DEFAULT,
+    RESPONSABLE_DEFAULT,
+    TIPO_ACTIVIDAD_DEFAULT,
     TIPO_TAREA_DEFAULT,
     UBICACION_DEFAULT,
-    TIPO_ACTIVIDAD_DEFAULT,
-    CAUSA_DEFAULT,
-    RESPONSABLE_DEFAULT,
-    PARTICIPANTES_DEFAULT,
-    APR_PARTICIPA,
-    ALZA_HOMBRE,
-    MAXIMO_FOTOS,
 )
 from playwright.sync_api import (
     Locator,
@@ -34,24 +36,12 @@ from playwright.sync_api import (
 # Configuración general del flujo
 # ---------------------------------------------------------------------------
 
-# Texto utilizado al crear la tarea base.
-OBSERVACION_TAREA_DEFAULT = "Mantenimiento CCTV"
-
-# Texto utilizado al crear la actividad.
-OBSERVACION_ACTIVIDAD_DEFAULT = "Mantenimiento CCTV"
-
-# Texto utilizado al cerrar la mantención.
-OBSERVACION_GENERAL_DEFAULT = "Mantenimiento CCTV"
-
-TIPO_TAREA_DEFAULT = "Mantencion Programada"
-UBICACION_DEFAULT = "DCH-SUBTE"
-TIPO_ACTIVIDAD_DEFAULT = "Mantenimiento Preventivo"
-CAUSA_DEFAULT = "CCTV"
-RESPONSABLE_DEFAULT = "Louis Rivera"
+OBSERVACION_TAREA_DEFAULT = OBSERVACION_DEFAULT
+OBSERVACION_ACTIVIDAD_DEFAULT = OBSERVACION_DEFAULT
+OBSERVACION_GENERAL_DEFAULT = OBSERVACION_DEFAULT
 
 TIMEOUT_CORTO_MS = 800
 TIMEOUT_NORMAL_MS = 10_000
-MAXIMO_FOTOS = 15
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +288,7 @@ def crear_tarea_base(
     page: Page,
     area_busqueda: str,
     area_psinet: str,
+    ubicacion_psinet: str = UBICACION_DEFAULT,
 ) -> None:
     """Completa y crea la tarea principal de mantenimiento."""
 
@@ -309,11 +300,11 @@ def crear_tarea_base(
         exact=True,
     ).click()
 
-    # Ubicación/contrato: DCH-SUBTE.
+    # Ubicación/contrato correspondiente a la división elegida.
     page.get_by_label("", exact=True).nth(1).click()
     page.get_by_role(
         "treeitem",
-        name=UBICACION_DEFAULT,
+        name=ubicacion_psinet,
         exact=True,
     ).click()
 
@@ -536,42 +527,43 @@ def completar_estado_general(page: Page) -> None:
 def completar_conexiones(page: Page) -> None:
     """Completa la sección CONEXIONES con los valores ya validados."""
 
-    page.get_by_role("link", name="CONEXIONES", exact=True).click()
+    enlace_conexiones = page.get_by_role(
+        "link",
+        name="CONEXIONES",
+        exact=True,
+    )
 
-    # Estos selectores corresponden a la estructura actual del checklist de
-    # PSINet. Se mantienen agrupados para facilitar su reemplazo si la interfaz
-    # cambia en el futuro.
-    selectores = [
-        (
-            "#collapse1543 > .card-body > .container > div > "
-            "div:nth-child(5) > .custom-control-label"
-        ),
-        (
-            "#collapse1543 > .card-body > .container > "
-            "div:nth-child(2) > div > .custom-control-label"
-        ),
-        (
-            "#collapse1543 > .card-body > .container > "
-            "div:nth-child(3) > div:nth-child(5) > .custom-control-label"
-        ),
-        (
-            "#collapse1543 > .card-body > .container > "
-            "div:nth-child(4) > div > .custom-control-label"
-        ),
-        (
-            "#collapse1543 > .card-body > .container > "
-            "div:nth-child(5) > div > .custom-control-label"
-        ),
-        (
-            "#collapse1543 > .card-body > .container > "
-            "div:nth-child(6) > div > .custom-control-label"
-        ),
-    ]
+    # El ID del acordeón cambia según el checklist cargado por PSINet.
+    # Se obtiene desde el propio enlace en vez de fijar "#collapse1543".
+    id_panel = enlace_conexiones.get_attribute("aria-controls")
 
-    for selector in selectores:
-        page.locator(selector).first.click()
+    if not id_panel:
+        href_panel = enlace_conexiones.get_attribute("href") or ""
+        id_panel = href_panel.removeprefix("#")
 
-    page.get_by_role("link", name="CONEXIONES", exact=True).click()
+    if not id_panel:
+        raise RuntimeError(
+            "No se pudo identificar el panel de la sección CONEXIONES."
+        )
+
+    enlace_conexiones.click()
+
+    panel_conexiones = page.locator(f"#{id_panel}")
+    panel_conexiones.wait_for(state="visible")
+
+    opciones_b = panel_conexiones.get_by_text("B", exact=True)
+    cantidad_opciones = opciones_b.count()
+
+    if cantidad_opciones != 6:
+        raise RuntimeError(
+            "Se esperaban 6 opciones 'B' en CONEXIONES, "
+            f"pero PSINet mostró {cantidad_opciones}."
+        )
+
+    for indice in range(cantidad_opciones):
+        opciones_b.nth(indice).click()
+
+    enlace_conexiones.click()
 
 
 # ---------------------------------------------------------------------------
@@ -822,8 +814,8 @@ def crear_mantenimiento(
             "equipo_alza_hombre": false
         }
 
-    Cuando no se entrega ``participantes``, se selecciona a Louis Rivera por
-    defecto. APR y equipo alza hombre quedan en ``No`` por defecto.
+    Cuando una opción no viene en ``evidencia``, se utiliza el valor definido
+    en ``automatizacion.data.config``.
     """
 
     area = evidencia["area"]
@@ -831,20 +823,23 @@ def crear_mantenimiento(
     fotos = evidencia.get("fotos", [])
     hora_inicio = evidencia.get("hora_inicio", "17:00")
     hora_fin = evidencia.get("hora_fin", "17:10")
+    ubicacion_psinet = str(
+        evidencia.get("ubicacion_psinet", UBICACION_DEFAULT)
+    ).strip()
     responsable = str(
         evidencia.get("responsable", RESPONSABLE_DEFAULT)
     ).strip()
 
     participantes = _normalizar_participantes(
-        evidencia.get("participantes"),
+        evidencia.get("participantes", PARTICIPANTES_DEFAULT),
         responsable=responsable,
     )
     apr_participa = _convertir_a_bool(
-        evidencia.get("apr_participa", False),
+        evidencia.get("apr_participa", APR_PARTICIPA),
         "apr_participa",
     )
     equipo_alza_hombre = _convertir_a_bool(
-        evidencia.get("equipo_alza_hombre", False),
+        evidencia.get("equipo_alza_hombre", ALZA_HOMBRE),
         "equipo_alza_hombre",
     )
 
@@ -864,6 +859,7 @@ def crear_mantenimiento(
         page=page,
         area_busqueda=area_busqueda,
         area_psinet=area,
+        ubicacion_psinet=ubicacion_psinet,
     )
 
     crear_actividad(
@@ -883,8 +879,8 @@ def crear_mantenimiento(
         equipo_alza_hombre=equipo_alza_hombre,
     )
 
-print(
-    "\nFormulario preparado para pruebas."
-    "\nLa mantención NO ha sido guardada ni finalizada."
-    "\nRevisa participantes, APR, alza hombre y fotografías en PSINet."
-)
+    print(
+        "\nFormulario preparado para pruebas."
+        "\nLa mantención NO ha sido guardada ni finalizada."
+        "\nRevisa participantes, APR, alza hombre y fotografías en PSINet."
+    )

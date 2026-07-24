@@ -1,5 +1,13 @@
 from datetime import datetime, timedelta
 from pathlib import Path
+
+from automatizacion.data.config import (
+    ALZA_HOMBRE,
+    APR_PARTICIPA,
+    DIVISIONES,
+    PARTICIPANTES_DEFAULT,
+    obtener_configuracion_division,
+)
 from psinet.descargas import descargar_pdf_abierto
 from psinet.login import login_psinet
 from psinet.navegador import iniciar_navegador
@@ -30,16 +38,6 @@ EXTENSIONES_IMAGEN_PERMITIDAS = {
     ".jpeg",
     ".png",
 }
-# Participantes que se seleccionarán automáticamente en cada actividad.
-# Los nombres deben coincidir exactamente con los mostrados por PSINet.
-PARTICIPANTES_DEFAULT = [
-    "Louis Rivera",
-    "Emgelbert Pizarro",
-]
-
-# Configuración predeterminada del cierre.
-APR_PARTICIPA_DEFAULT = False
-EQUIPO_ALZA_HOMBRE_DEFAULT = False
 
 
 def sumar_minutos(hora: str, minutos: int) -> str:
@@ -67,6 +65,36 @@ def pedir_hora_inicio() -> str:
     return hora
 
 
+def pedir_division() -> tuple[str, dict[str, str]]:
+    """Muestra las divisiones configuradas y solicita una selección."""
+
+    divisiones = list(DIVISIONES)
+
+    while True:
+        print("\nDivisiones disponibles:")
+
+        for indice, division in enumerate(divisiones, start=1):
+            print(f"{indice}. {division}")
+
+        opcion = input("Selecciona una división: ").strip()
+
+        try:
+            indice = int(opcion) - 1
+            division = divisiones[indice]
+        except (ValueError, IndexError):
+            print("Opción inválida. Escribe el número de una división.")
+            continue
+
+        if indice < 0:
+            print("Opción inválida. Escribe el número de una división.")
+            continue
+
+        configuracion = obtener_configuracion_division(division)
+        print(f"División seleccionada: {division}")
+
+        return division, configuracion
+
+
 def pedir_area() -> str | None:
     """Solicita el nombre de la cámara o finaliza el ciclo."""
 
@@ -83,6 +111,7 @@ def pedir_area() -> str | None:
             return area
 
         print("Debes escribir un nombre de cámara o 'salir'.")
+
 
 def buscar_imagen_por_nombre(
     directorio: Path,
@@ -138,9 +167,12 @@ def obtener_fotos_art() -> list[str]:
 
     return fotos_art
 
+
 def crear_evidencia_manual(
     area: str,
     hora_inicio: str,
+    division: str,
+    ubicacion_psinet: str,
 ) -> dict:
     """Construye la evidencia utilizada por crear_mantenimiento()."""
 
@@ -152,6 +184,8 @@ def crear_evidencia_manual(
     return {
         "area": area,
         "area_busqueda": area,
+        "division": division,
+        "ubicacion_psinet": ubicacion_psinet,
         "hora_inicio": hora_inicio,
         "hora_fin": hora_fin,
 
@@ -159,8 +193,8 @@ def crear_evidencia_manual(
         "participantes": PARTICIPANTES_DEFAULT.copy(),
 
         # Opciones del cierre.
-        "apr_participa": APR_PARTICIPA_DEFAULT,
-        "equipo_alza_hombre": EQUIPO_ALZA_HOMBRE_DEFAULT,
+        "apr_participa": APR_PARTICIPA,
+        "equipo_alza_hombre": ALZA_HOMBRE,
 
         # Las fotografías siguen cargándose manualmente durante las pruebas.
         "fotos": obtener_fotos_art(),
@@ -170,6 +204,7 @@ def crear_evidencia_manual(
 def main() -> None:
     """Ejecuta mantenciones manuales consecutivas usando la misma sesión."""
 
+    division, configuracion_division = pedir_division()
     hora_actual = pedir_hora_inicio()
     modo_navegacion = "completa"
 
@@ -186,6 +221,10 @@ def main() -> None:
             evidencia = crear_evidencia_manual(
                 area=area,
                 hora_inicio=hora_actual,
+                division=division,
+                ubicacion_psinet=(
+                    configuracion_division["ubicacion_psinet"]
+                ),
             )
 
             print()
