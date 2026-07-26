@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 512 512"
+     width="512"
+     height="512"
+     role="img"
+     aria-labelledby="title description">
+  <title id="title">CCTVFlow Camera</title>
+  <desc id="description">Icono de cámara en tonos cian sobre fondo azul marino, con destello de captura.</desc>
+
+  <defs>
+    <linearGradient id="background" x1="64" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#1E293B"/>
+    </linearGradient>
+    <linearGradient id="lens" x1="224" y1="208" x2="350" y2="336" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="0.55" stop-color="#06B6D4"/>
+      <stop offset="1" stop-color="#0E7490"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1"
+                    gradientTransform="translate(284 270) rotate(90) scale(178)"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0EA5E9" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#0EA5E9" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Fondo de marca -->
+  <rect x="20" y="20" width="472" height="472" rx="108" fill="url(#background)"/>
+  <rect x="21.5" y="21.5" width="469" height="469" rx="106.5"
+        fill="none" stroke="#334155" stroke-width="3"/>
+  <circle cx="282" cy="270" r="178" fill="url(#halo)"/>
+
+  <!-- Parte superior de la cámara -->
+  <path d="M164 190 L185 142 Q191 128 207 128 H278 Q292 128 298 142 L319 190 Z"
+        fill="#1E293B" stroke="#38BDF8" stroke-width="9" stroke-linejoin="round"/>
+  <rect x="129" y="158" width="50" height="23" rx="10" fill="#334155"/>
+
+  <!-- Cuerpo -->
+  <rect x="99" y="181" width="313" height="198" rx="42"
+        fill="#162033" stroke="#38BDF8" stroke-width="10"/>
+
+  <!-- LED de estado -->
+  <circle cx="144" cy="225" r="9" fill="#F43F5E"/>
+  <circle cx="144" cy="225" r="15" fill="none" stroke="#F43F5E" stroke-opacity="0.22" stroke-width="4"/>
+
+  <!-- Lente / obturador -->
+  <circle cx="293" cy="280" r="86" fill="#0F172A" stroke="#06B6D4" stroke-width="10"/>
+  <circle cx="293" cy="280" r="66" fill="url(#lens)" opacity="0.92"/>
+  <circle cx="293" cy="280" r="41" fill="#0F172A" opacity="0.88"/>
+  <path d="M293 214 L324 263 L293 280 L252 250 Q266 222 293 214 Z"
+        fill="#BAE6FD" opacity="0.28"/>
+  <path d="M349 247 L324 294 L293 280 L334 250 Q342 245 349 247 Z"
+        fill="#E0F2FE" opacity="0.24"/>
+  <path d="M293 346 L262 297 L293 280 L334 310 Q320 338 293 346 Z"
+        fill="#67E8F9" opacity="0.24"/>
+  <circle cx="316" cy="251" r="11" fill="#E0F2FE" opacity="0.9"/>
+
+  <!-- Destello de captura -->
+  <path d="M390 82 L403 119 L440 132 L403 145 L390 182 L377 145 L340 132 L377 119 Z"
+        fill="#38BDF8"/>
+  <path d="M438 180 L445 199 L464 206 L445 213 L438 232 L431 213 L412 206 L431 199 Z"
+        fill="#67E8F9" opacity="0.9"/>
+
+  <!-- Acento de flujo -->
+  <path d="M129 405 H335" fill="none" stroke="#0EA5E9" stroke-width="8"
+        stroke-linecap="round" opacity="0.34"/>
+  <circle cx="359" cy="405" r="8" fill="#06B6D4" opacity="0.8"/>
+</svg>
