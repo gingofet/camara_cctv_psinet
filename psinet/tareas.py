@@ -739,6 +739,7 @@ def completar_cierre(
     fotos: Sequence[str],
     apr_participa: bool = False,
     equipo_alza_hombre: bool = False,
+    observacion: str = OBSERVACION_DEFAULT,
 ) -> None:
     """Completa los datos finales antes de guardar la mantención."""
 
@@ -779,7 +780,7 @@ def completar_cierre(
     page.get_by_role(
         "textbox",
         name="Observaciones generales:",
-    ).fill(OBSERVACION_DEFAULT)
+    ).fill(observacion.strip() or OBSERVACION_DEFAULT)
 
     if fotos:
         subir_fotos(
@@ -811,7 +812,8 @@ def crear_mantenimiento(
         {
             "participantes": ["Louis Rivera", "Emgelbert Pizarro"],
             "apr_participa": false,
-            "equipo_alza_hombre": false
+            "equipo_alza_hombre": false,
+            "observacion": "Mantenimiento preventivo CCTV"
         }
 
     Cuando una opción no viene en ``evidencia``, se utiliza el valor definido
@@ -842,6 +844,9 @@ def crear_mantenimiento(
         evidencia.get("equipo_alza_hombre", ALZA_HOMBRE),
         "equipo_alza_hombre",
     )
+    observacion = str(
+        evidencia.get("observacion", OBSERVACION_DEFAULT)
+    ).strip()
 
     if modo_navegacion == "completa":
         ir_a_tareas(page)
@@ -877,6 +882,7 @@ def crear_mantenimiento(
         fotos=fotos,
         apr_participa=apr_participa,
         equipo_alza_hombre=equipo_alza_hombre,
+        observacion=observacion,
     )
 
     print(
