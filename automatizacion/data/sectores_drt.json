@@ -54,7 +54,10 @@
     "RTMINP005-Mirador sur lado derecho",
     "RTMINP007-Mirador Fase 28",
     "RTMINP008-Mirador Stock 362",
-    "RTMINV007-Entrada Mina Punto 10"
+    "RTMINV007-Entrada Mina Punto 10",
+    "RTMINV003-Area Casino Sur Mina",
+    "RTMINV004-Area Polvorin Enaex",
+    "RTMINV005-Fase 5"
   ],
   "CHANCADO OXIDOS": [
     "RTOXIP001-Bahias Oxido",
@@ -93,7 +96,8 @@
     "RTSPR016-SPR N11",
     "RTSPR017-SPR N12",
     "RTSPR018-SPR N8",
-    "RTSPR019-TR607 N1"
+    "RTSPR019-TR607 N1",
+    "RTSPR006-SPR N13"
   ],
   "SUBESTACION ELECTRICA": [
     "RTSUBV001-Patio 220 KV",
@@ -135,7 +139,15 @@
     "RTSTEW-P005-MAQ 1-Llavado de Catodo",
     "RTSTEW-P001-MAQ 1-Salida Catodos",
     "RTSTEW-P009-MAQ 2-Salida Catodos",
-    "RTSTEW-P011-MAQ 3-Lavado de Catodos"
+    "RTSTEW-P011-MAQ 3-Lavado de Catodos",
+    "RTSTEW-P012-MAQ 3-Ingreso Nave",
+    "RTSTEW-P013-MAQ 3-Vagones de Carga",
+    "RTSTEW-P014-MAQ 3-Despegadora de Catodos",
+    "RTSTEW-P015-MAQ 3-Salida de Paquetes",
+    "RTSTEW-P016-Patio Estanque",
+    "RTSTEW-P017-Sumideros 1 y 2",
+    "RTSTEW-P018-Rebose de bombas",
+    "RTSTEW-P019-Bocatoma"
   ],
   "OXIDO NUEVO": [
     "RTOXIP021-Cabeza correa Traspaso",
@@ -153,7 +165,8 @@
     "RTOXIP033-Acceso Bahia Norte",
     "RTOXIP034-Sala Electrica 3175-QIC-001",
     "RTOXIP035-Electroiman",
-    "RTOXIP037-Cabezal Picaroca"
+    "RTOXIP037-Cabezal Picaroca",
+    "RTOXIP036-Interior Chute Traspaso"
   ],
   "AREA SECA": [
     "RTSTLP01-01",
@@ -176,5 +189,65 @@
     "RTSTLP02-13-Sala Electrica",
     "RTSTSECA-P019-Plataforma de Acido",
     "RTSTSECA-P020-Plataforma de Acido"
+  ],
+  "BARRIO INDUSTRIAL": [
+    "RTBINV001-Auditorium Barrio Industrial",
+    "RTBINV002-Interior Ing. y Proyectos 1",
+    "RTBINV003-Pasillo Oficinas BI",
+    "RTBINV004-Garita Entrada Barrio Industrial",
+    "RTBINV005-Exterior Ing. y Proyecto",
+    "RTBINV006-Interior Sala de Datos Barrio Industrial",
+    "RTBINV007-Interior Sala de Datos Sala Ascotan",
+    "RTBINV008-Int Ing de proyecto 2",
+    "RTBINV009-Int Ing de proyecto 3",
+    "RTBINV011-Interior cecom DRT",
+    "RTBINV012-Patio bodega 1",
+    "RTBINV014-Salida Bodega Patio 1",
+    "RTBINV013-Interior bodega 1",
+    "RTBP2V001-Bodega Patio N2",
+    "RTMITV001-Cerro Mirador Thermal"
+  ],
+  "CALAMA": [
+    "RTCALV001-Entrada Central Calama",
+    "RTCALV003-Exterior Rrhh Calama",
+    "RTCALV004-Sala Calama 1",
+    "RTCALV005-Entrada principal RRHH"
+  ],
+  "CERRO DIAMANTE": [
+    "RTCDIV001-Cerro Diamante PI",
+    "RTCDIV002-Cerro Diamante PI 2",
+    "RTMINP004-Cerro Diamante Mina",
+    "RTCDIV003-Interior Shelter Cerro Diamante",
+    "RTCDIV004-Exterior Shelter Cerro Diamante",
+    "RTCDIV005-Playa Fase N33",
+    "RTCDIV006-Interior Shelter P-25",
+    "RTCDIV007-Exterior Shelter P-25"
+  ],
+  "LP3": [
+    "RTSLPV001-LP3",
+    "RTSLPV002-Ex Ripiera Mariner",
+    "RTBREV001-Bodega Reparable"
+  ],
+  "INFRAESTRUCTURA": [
+    "DRTINFRAV001-Sala de emergencia",
+    "DRTINFRAV002-Sala de comunicaciones 1",
+    "DRTINFRAV003-Estaciones de trabajo",
+    "DRTINFRAV004-Hall de acceso 1",
+    "DRTINFRAV005-Sala de comunicaciones 2",
+    "DRTINFRAV006-Sala de comunicaciones 3",
+    "DRTINFRAV007-Pasillo Interior oficinas",
+    "DRTINFRAV008-Estaciones de trabajo",
+    "DRTINFRAV009-Sala de comunicaciones 4",
+    "DRTINFRAV010-Hall de acceso 2",
+    "DRTINFRAV011-Hall de acceso 3",
+    "DRTINFRAV012-Plataforma de cachimbas",
+    "DRTINFRAV013-Plataforma de cachimbas 2",
+    "DRTINFRAV014-Acceso vehiculos a oficina",
+    "DRTINFRAV015-Estacionamientos",
+    "DRTINFRAV016-Plataforma barrio civico",
+    "DRTINFRAV017-Exterior edificio",
+    "DRTINFRAV018-Plataforma barrio civico 2",
+    "DRTINFRAV019-Patio electrico",
+    "DRTINFRAV020-Plataforma barrio civico 3"
   ]
 }
