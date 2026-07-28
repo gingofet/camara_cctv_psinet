@@ -2,8 +2,11 @@ package cl.cctvflow.camera.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import cl.cctvflow.camera.data.CatalogRepository
 import cl.cctvflow.camera.data.CounterRepository
+import cl.cctvflow.camera.data.PhotoArchive
+import cl.cctvflow.camera.data.PhotoArchiveRepository
 import cl.cctvflow.camera.domain.CaptureRequest
 import cl.cctvflow.camera.domain.Division
 import cl.cctvflow.camera.domain.FileNameGenerator
@@ -11,6 +14,9 @@ import cl.cctvflow.camera.domain.Sector
 import cl.cctvflow.camera.domain.Turno
 import java.text.Normalizer
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class AppScreen {
     SELECTION,
@@ -28,6 +34,8 @@ data class CCTVFlowUiState(
     val isCapturing: Boolean = false,
     val savedCount: Int = 0,
     val lastSavedFile: String? = null,
+    val isExporting: Boolean = false,
+    val archiveReady: PhotoArchive? = null,
     val errorMessage: String? = null,
 ) {
     val camerasInSelectedSector: List<String>
@@ -58,6 +66,7 @@ data class CCTVFlowUiState(
 class CCTVFlowViewModel(
     private val catalogRepository: CatalogRepository,
     private val counterRepository: CounterRepository,
+    private val photoArchiveRepository: PhotoArchiveRepository,
 ) : ViewModel() {
     var uiState = androidx.compose.runtime.mutableStateOf(CCTVFlowUiState())
         private set
@@ -157,6 +166,43 @@ class CCTVFlowViewModel(
         uiState.value = uiState.value.copy(errorMessage = null)
     }
 
+    fun exportPhotos() {
+        val state = uiState.value
+        if (state.isExporting) return
+
+        uiState.value = state.copy(
+            isExporting = true,
+            archiveReady = null,
+            errorMessage = null,
+        )
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    photoArchiveRepository.create(
+                        division = state.division,
+                        turno = state.turno,
+                    )
+                }
+            }.onSuccess { archive ->
+                uiState.value = uiState.value.copy(
+                    isExporting = false,
+                    archiveReady = archive,
+                    errorMessage = null,
+                )
+            }.onFailure { error ->
+                uiState.value = uiState.value.copy(
+                    isExporting = false,
+                    errorMessage = error.message
+                        ?: "No se pudo crear el archivo ZIP.",
+                )
+            }
+        }
+    }
+
+    fun archiveShared() {
+        uiState.value = uiState.value.copy(archiveReady = null)
+    }
+
     private fun loadDivision(division: Division) {
         runCatching { catalogRepository.load(division) }
             .onSuccess { sectors ->
@@ -180,6 +226,7 @@ class CCTVFlowViewModel(
     class Factory(
         private val catalogRepository: CatalogRepository,
         private val counterRepository: CounterRepository,
+        private val photoArchiveRepository: PhotoArchiveRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -187,8 +234,8 @@ class CCTVFlowViewModel(
             return CCTVFlowViewModel(
                 catalogRepository = catalogRepository,
                 counterRepository = counterRepository,
+                photoArchiveRepository = photoArchiveRepository,
             ) as T
         }
     }
 }
-

@@ -23,7 +23,10 @@
   menú.
 - [ ] Entregar automáticamente al ejecutor los horarios calculados por el menú.
 - [ ] Conectar `lector_fotos.py` y `plan_ejecucion.json` con el motor principal.
-- [ ] Asociar y subir automáticamente la fotografía de cada mantención.
+- [x] Asociar y subir automáticamente las fotografías de cada mantención
+  importadas desde la GUI.
+- [ ] Validar en PSINet un lote completo con ART diferentes por área y limpieza
+  posterior de las imágenes.
 - [ ] Mantener el modo manual como respaldo técnico estable.
 
 ## Robustez y calidad

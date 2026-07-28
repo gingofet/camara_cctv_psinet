@@ -1,11 +1,39 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import unquote, urlparse
 
-from playwright.sync_api import Page
+from pypdf import PdfReader
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Page
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 PDF_DIR = BASE_DIR / "downloads" / "pdfs"
+PAGINAS_BASE_INFORME = 1
+
+
+class PdfMantenimientoIncompletoError(RuntimeError):
+    """PSINet generó el PDF, pero omitió una o más fotografías."""
+
+    def __init__(
+        self,
+        ruta_pdf: Path,
+        paginas_reales: int,
+        paginas_minimas: int,
+        cantidad_fotos_esperadas: int,
+    ):
+        self.ruta_pdf = ruta_pdf
+        self.paginas_reales = paginas_reales
+        self.paginas_minimas = paginas_minimas
+        self.cantidad_fotos_esperadas = cantidad_fotos_esperadas
+        super().__init__(
+            f"El PDF {ruta_pdf.name} tiene {paginas_reales} página(s), "
+            f"pero se esperaban al menos {paginas_minimas}: una página "
+            f"de informe y {cantidad_fotos_esperadas} fotografía(s)."
+        )
 
 
 def obtener_nombre_pdf_desde_url(url: str) -> str:
@@ -54,3 +82,51 @@ def descargar_pdf_abierto(page: Page):
 
     print(f"PDF descargado: {destino}")
     return destino
+
+
+def validar_pdf_mantenimiento(
+    ruta_pdf: str | Path,
+    cantidad_fotos_esperadas: int,
+) -> int:
+    """Confirma que el PDF contenga el informe y todas las fotografías.
+
+    PSINet genera una primera página de checklist y una página adicional por
+    fotografía. Se acepta que el informe tenga páginas extra, pero nunca menos
+    de las necesarias para la cantidad de imágenes enviada.
+    """
+
+    ruta = Path(ruta_pdf)
+
+    if cantidad_fotos_esperadas < 0:
+        raise ValueError(
+            "La cantidad de fotografías esperadas no puede ser negativa."
+        )
+
+    if not ruta.is_file() or ruta.stat().st_size == 0:
+        raise RuntimeError(
+            f"El PDF descargado no existe o está vacío: {ruta}"
+        )
+
+    try:
+        lector = PdfReader(str(ruta))
+        paginas_reales = len(lector.pages)
+    except Exception as error:
+        raise RuntimeError(
+            f"No fue posible validar el PDF descargado: {ruta.name}"
+        ) from error
+
+    paginas_minimas = PAGINAS_BASE_INFORME + cantidad_fotos_esperadas
+
+    if paginas_reales < paginas_minimas:
+        raise PdfMantenimientoIncompletoError(
+            ruta_pdf=ruta,
+            paginas_reales=paginas_reales,
+            paginas_minimas=paginas_minimas,
+            cantidad_fotos_esperadas=cantidad_fotos_esperadas,
+        )
+
+    print(
+        f"PDF validado: {paginas_reales} página(s), "
+        f"{cantidad_fotos_esperadas} fotografía(s) confirmadas."
+    )
+    return paginas_reales

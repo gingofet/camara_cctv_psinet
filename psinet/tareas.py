@@ -25,10 +25,20 @@ from automatizacion.data.config import (
     TIPO_TAREA_DEFAULT,
     UBICACION_DEFAULT,
 )
+from psinet.checklist import (
+    estados_conexiones,
+    variantes_item_conexiones,
+)
+from psinet.fotos import selector_input_foto
+from psinet.manual import (
+    ConfirmacionManual,
+    esperar_confirmacion_manual,
+)
 from playwright.sync_api import (
     Locator,
     Page,
     TimeoutError as PlaywrightTimeoutError,
+    expect,
 )
 
 
@@ -42,6 +52,9 @@ OBSERVACION_GENERAL_DEFAULT = OBSERVACION_DEFAULT
 
 TIMEOUT_CORTO_MS = 800
 TIMEOUT_NORMAL_MS = 10_000
+TIMEOUT_FOTO_MS = 30_000
+ESPERA_PROCESAMIENTO_FOTO_MS = 1_000
+ESPERA_FINAL_FOTOS_MS = 2_000
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +267,7 @@ def seleccionar_camara(
     page: Page,
     area_busqueda: str,
     area_psinet: str,
+    confirmar_manual: ConfirmacionManual | None = None,
 ) -> None:
     """Busca y selecciona una cámara en el árbol de PSINet.
 
@@ -281,7 +295,10 @@ def seleccionar_camara(
 
     print("\nNo pude seleccionar la cámara automáticamente.")
     print("Selecciona la cámara manualmente en PSINet.")
-    input("Cuando la selecciones, presiona Enter aquí para continuar...")
+    esperar_confirmacion_manual(
+        "Selecciona la cámara manualmente en PSINet.",
+        confirmar_manual,
+    )
 
 
 def crear_tarea_base(
@@ -289,6 +306,7 @@ def crear_tarea_base(
     area_busqueda: str,
     area_psinet: str,
     ubicacion_psinet: str = UBICACION_DEFAULT,
+    confirmar_manual: ConfirmacionManual | None = None,
 ) -> None:
     """Completa y crea la tarea principal de mantenimiento."""
 
@@ -315,6 +333,7 @@ def crear_tarea_base(
         page=page,
         area_busqueda=area_busqueda,
         area_psinet=area_psinet,
+        confirmar_manual=confirmar_manual,
     )
 
     page.locator(
@@ -417,6 +436,7 @@ def seleccionar_participante(
 def seleccionar_participantes(
     page: Page,
     participantes: Sequence[str],
+    confirmar_manual: ConfirmacionManual | None = None,
 ) -> None:
     """Selecciona todos los participantes configurados.
 
@@ -431,9 +451,9 @@ def seleccionar_participantes(
 
     if not participantes_limpios:
         print("\nNo se configuraron participantes para esta actividad.")
-        input(
-            "Selecciona los participantes manualmente y presiona Enter "
-            "para continuar..."
+        esperar_confirmacion_manual(
+            "Selecciona los participantes manualmente en PSINet.",
+            confirmar_manual,
         )
         return
 
@@ -449,9 +469,9 @@ def seleccionar_participantes(
         for participante in no_seleccionados:
             print(f"  - {participante}")
 
-        input(
-            "Selecciona manualmente los participantes pendientes y "
-            "presiona Enter para continuar..."
+        esperar_confirmacion_manual(
+            "Selecciona manualmente los participantes pendientes en PSINet.",
+            confirmar_manual,
         )
         return
 
@@ -464,6 +484,7 @@ def crear_actividad(
     hora_fin: str = "17:10",
     responsable: str = RESPONSABLE_DEFAULT,
     participantes: Sequence[str] | None = None,
+    confirmar_manual: ConfirmacionManual | None = None,
 ) -> None:
     """Crea la actividad asociada a la tarea base."""
 
@@ -487,7 +508,11 @@ def crear_actividad(
     participantes_objetivo = (
         list(participantes) if participantes is not None else [responsable]
     )
-    seleccionar_participantes(page, participantes_objetivo)
+    seleccionar_participantes(
+        page,
+        participantes_objetivo,
+        confirmar_manual=confirmar_manual,
+    )
 
     # PSINet incluye un selector adicional que actualmente aparece con valor
     # "No" y que el flujo original cambia a "Si". Se mantiene esta acción para
@@ -524,8 +549,115 @@ def completar_estado_general(page: Page) -> None:
     page.get_by_role("link", name="ESTADO GENERAL", exact=True).click()
 
 
-def completar_conexiones(page: Page) -> None:
-    """Completa la sección CONEXIONES con los valores ya validados."""
+def _seleccionar_estado_item_checklist(
+    page: Page,
+    panel: Locator,
+    item: str,
+    estado: str,
+) -> None:
+    """Selecciona un estado dentro de la fila identificada por su nombre."""
+
+    variantes = variantes_item_conexiones(item)
+    alternativas = "|".join(
+        re.escape(variante)
+        for variante in variantes
+    )
+    patron_item = re.compile(
+        rf"^\s*(?:{alternativas})\s*$",
+        re.IGNORECASE,
+    )
+    titulo = panel.get_by_text(patron_item).first
+
+    try:
+        titulo.wait_for(state="visible", timeout=TIMEOUT_NORMAL_MS)
+    except PlaywrightTimeoutError as error:
+        variantes_texto = ", ".join(repr(variante) for variante in variantes)
+        raise RuntimeError(
+            "No se encontró el ítem de conexiones "
+            f"{item!r}. Variantes buscadas: {variantes_texto}."
+        ) from error
+
+    # Cada fila contiene sus propias alternativas B, M y N/A. Buscar el
+    # ancestro más cercano evita depender de la posición global de los radios.
+    fila = titulo.locator(
+        "xpath=ancestor::*["
+        ".//*[normalize-space()='B'] and "
+        ".//*["
+        "translate(normalize-space(), ' ', '')='N/A' or "
+        "translate(normalize-space(), ' ', '')='NA'"
+        "]"
+        "][1]"
+    ).first
+
+    if fila.count() == 0:
+        raise RuntimeError(
+            f"No se pudo identificar la fila del ítem: {item}"
+        )
+
+    if estado == "N/A":
+        patron_estado = re.compile(
+            r"^\s*N\s*/?\s*A\s*$",
+            re.IGNORECASE,
+        )
+    else:
+        patron_estado = _patron_texto_exacto(estado)
+
+    controles = fila.locator(
+        "label, button, [role='button']"
+    ).filter(has_text=patron_estado)
+
+    if controles.count() == 0:
+        texto_estado = fila.get_by_text(patron_estado).first
+
+        if texto_estado.count() > 0:
+            controles = texto_estado.locator(
+                "xpath=ancestor-or-self::*["
+                "self::label or self::button or @role='button'"
+                "][1]"
+            )
+
+    if controles.count() == 0:
+        raise RuntimeError(
+            f"No se encontró la opción '{estado}' para '{item}'."
+        )
+
+    control = controles.first
+    input_asociado = _buscar_input_asociado(page, control)
+    seleccionado = False
+
+    # Los estados B y N/A usan la misma ruta rápida. Marcar directamente el
+    # input asociado evita esperas distintas entre etiquetas del checklist y
+    # sigue disparando los eventos input/change que utiliza PSINet.
+    if input_asociado is not None:
+        try:
+            input_asociado.check(force=True)
+            expect(input_asociado).to_be_checked(
+                timeout=TIMEOUT_NORMAL_MS,
+            )
+            seleccionado = True
+        except Exception:
+            seleccionado = False
+
+    # Respaldo para formularios cuya etiqueta no exponga un input verificable.
+    if not seleccionado:
+        seleccionado = _activar_control_etiquetado(
+            page=page,
+            control=control,
+        )
+
+    if not seleccionado:
+        raise RuntimeError(
+            f"No fue posible confirmar '{estado}' para '{item}'."
+        )
+
+    print(f"Conexiones · {item}: {estado}")
+
+
+def completar_conexiones(
+    page: Page,
+    camara_ip: bool = False,
+) -> None:
+    """Completa CONEXIONES por nombre, usando N/A donde corresponde."""
 
     enlace_conexiones = page.get_by_role(
         "link",
@@ -551,17 +683,13 @@ def completar_conexiones(page: Page) -> None:
     panel_conexiones = page.locator(f"#{id_panel}")
     panel_conexiones.wait_for(state="visible")
 
-    opciones_b = panel_conexiones.get_by_text("B", exact=True)
-    cantidad_opciones = opciones_b.count()
-
-    if cantidad_opciones != 6:
-        raise RuntimeError(
-            "Se esperaban 6 opciones 'B' en CONEXIONES, "
-            f"pero PSINet mostró {cantidad_opciones}."
+    for item, estado in estados_conexiones(camara_ip):
+        _seleccionar_estado_item_checklist(
+            page=page,
+            panel=panel_conexiones,
+            item=item,
+            estado=estado,
         )
-
-    for indice in range(cantidad_opciones):
-        opciones_b.nth(indice).click()
 
     enlace_conexiones.click()
 
@@ -682,6 +810,8 @@ def subir_fotos(
             f"permite un máximo de {MAXIMO_FOTOS}."
         )
 
+    archivos_confirmados: list[tuple[int, Path]] = []
+
     for indice, foto in enumerate(fotos, start=1):
         ruta_foto = Path(foto)
 
@@ -695,22 +825,85 @@ def subir_fotos(
             f"{ruta_foto.name}"
         )
 
-        if indice == 1:
-            selector_archivo = page.get_by_role(
-                "button",
-                name="Choose File",
-            )
-        else:
-            selector_archivo = page.locator(
-                f"#inputFoto{indice}"
+        # PSINet conserva todos los inputs anteriores en el DOM. Usar siempre
+        # su ID evita que un locator genérico vuelva a resolver tres elementos
+        # durante la verificación final en modo estricto.
+        selector_archivo = page.locator(
+            selector_input_foto(indice)
+        )
+
+        selector_archivo.wait_for(
+            state="attached",
+            timeout=TIMEOUT_FOTO_MS,
+        )
+        selector_archivo.set_input_files(str(ruta_foto))
+
+        # set_input_files confirma la asignación del navegador, pero PSINet
+        # además procesa el evento change mediante JavaScript. Primero se
+        # comprueba el nombre real retenido por el input y luego se concede
+        # tiempo al procesamiento de la interfaz antes de crear otro campo.
+        expect(selector_archivo).to_have_value(
+            re.compile(rf"{re.escape(ruta_foto.name)}$"),
+            timeout=TIMEOUT_FOTO_MS,
+        )
+
+        archivo_correcto = selector_archivo.evaluate(
+            """(input, nombreEsperado) => Boolean(
+                input.files
+                && input.files.length === 1
+                && input.files[0].name === nombreEsperado
+                && input.files[0].size > 0
+            )""",
+            ruta_foto.name,
+        )
+
+        if not archivo_correcto:
+            raise RuntimeError(
+                "PSINet no conservó correctamente la fotografía "
+                f"{indice}: {ruta_foto.name}"
             )
 
-        selector_archivo.set_input_files(str(ruta_foto))
+        archivos_confirmados.append((indice, ruta_foto))
+        print(f"Fotografía confirmada en PSINet: {ruta_foto.name}")
+        page.wait_for_timeout(ESPERA_PROCESAMIENTO_FOTO_MS)
 
         # Mientras queden fotografías por subir, crea el siguiente campo.
         if indice < len(fotos):
-            page.locator(f"#plus{indice}").click()
+            boton_agregar = page.locator(f"#plus{indice}")
+            boton_agregar.wait_for(
+                state="visible",
+                timeout=TIMEOUT_FOTO_MS,
+            )
+            boton_agregar.click()
             page.wait_for_timeout(300)
+
+    # La última evidencia fue la que se perdió en la prueba real. Se vuelven a
+    # validar todos los inputs y se espera antes de habilitar el guardado.
+    for indice, ruta_foto in archivos_confirmados:
+        selector_archivo = page.locator(
+            selector_input_foto(indice)
+        )
+        archivo_correcto = selector_archivo.evaluate(
+            """(input, nombreEsperado) => Boolean(
+                input.files
+                && input.files.length === 1
+                && input.files[0].name === nombreEsperado
+                && input.files[0].size > 0
+            )""",
+            ruta_foto.name,
+        )
+
+        if not archivo_correcto:
+            raise RuntimeError(
+                "Una fotografía dejó de estar disponible antes de guardar: "
+                f"{ruta_foto.name}"
+            )
+
+    page.wait_for_timeout(ESPERA_FINAL_FOTOS_MS)
+    print(
+        f"Carga verificada: {len(archivos_confirmados)} fotografía(s) "
+        "listas para guardar."
+    )
 
     # Después de cargar las ART, crea un campo vacío adicional
     # para la fotografía manual del mantenimiento.
@@ -740,6 +933,8 @@ def completar_cierre(
     apr_participa: bool = False,
     equipo_alza_hombre: bool = False,
     observacion: str = OBSERVACION_DEFAULT,
+    dejar_campo_extra: bool = True,
+    confirmar_manual: ConfirmacionManual | None = None,
 ) -> None:
     """Completa los datos finales antes de guardar la mantención."""
 
@@ -772,9 +967,9 @@ def completar_cierre(
         for error in errores:
             print(f"  - {error}")
 
-        input(
-            "Selecciona manualmente las opciones pendientes y presiona "
-            "Enter para continuar..."
+        esperar_confirmacion_manual(
+            "Selecciona manualmente las opciones pendientes en PSINet.",
+            confirmar_manual,
         )
 
     page.get_by_role(
@@ -786,13 +981,22 @@ def completar_cierre(
         subir_fotos(
             page=page,
             fotos=fotos,
-            dejar_campo_extra=True,
+            dejar_campo_extra=dejar_campo_extra,
         )
 
     print()
-    print("Las fotografías de la ART fueron cargadas automáticamente.")
-    print("Agrega manualmente la fotografía del mantenimiento.")
-    print("La mantención NO se guardará automáticamente durante esta prueba.")
+
+    if dejar_campo_extra:
+        print("Las fotografías de la ART fueron cargadas automáticamente.")
+        print("Agrega manualmente la fotografía del mantenimiento.")
+        print(
+            "La mantención NO se guardará automáticamente durante esta prueba."
+        )
+    else:
+        print(
+            f"Las {len(fotos)} fotografías fueron cargadas automáticamente."
+        )
+        print("El formulario está listo para guardarse automáticamente.")
 
 
 # ---------------------------------------------------------------------------
@@ -804,6 +1008,7 @@ def crear_mantenimiento(
     page: Page,
     evidencia: dict[str, Any],
     modo_navegacion: str = "completa",
+    confirmar_manual: ConfirmacionManual | None = None,
 ) -> None:
     """Ejecuta el flujo completo de una mantención preventiva.
 
@@ -847,6 +1052,15 @@ def crear_mantenimiento(
     observacion = str(
         evidencia.get("observacion", OBSERVACION_DEFAULT)
     ).strip()
+    dejar_campo_extra = _convertir_a_bool(
+        evidencia.get("dejar_campo_extra", True),
+        "dejar_campo_extra",
+    )
+    division = str(evidencia.get("division", "")).strip().upper()
+    camara_ip = _convertir_a_bool(
+        evidencia.get("camara_ip", division == "DRT"),
+        "camara_ip",
+    )
 
     if modo_navegacion == "completa":
         ir_a_tareas(page)
@@ -865,6 +1079,7 @@ def crear_mantenimiento(
         area_busqueda=area_busqueda,
         area_psinet=area,
         ubicacion_psinet=ubicacion_psinet,
+        confirmar_manual=confirmar_manual,
     )
 
     crear_actividad(
@@ -873,20 +1088,29 @@ def crear_mantenimiento(
         hora_fin=hora_fin,
         responsable=responsable,
         participantes=participantes,
+        confirmar_manual=confirmar_manual,
     )
 
     completar_estado_general(page)
-    completar_conexiones(page)
+    completar_conexiones(page, camara_ip=camara_ip)
     completar_cierre(
         page=page,
         fotos=fotos,
         apr_participa=apr_participa,
         equipo_alza_hombre=equipo_alza_hombre,
         observacion=observacion,
+        dejar_campo_extra=dejar_campo_extra,
+        confirmar_manual=confirmar_manual,
     )
 
-    print(
-        "\nFormulario preparado para pruebas."
-        "\nLa mantención NO ha sido guardada ni finalizada."
-        "\nRevisa participantes, APR, alza hombre y fotografías en PSINet."
-    )
+    if dejar_campo_extra:
+        print(
+            "\nFormulario preparado para pruebas."
+            "\nLa mantención NO ha sido guardada ni finalizada."
+            "\nRevisa participantes, APR, alza hombre y fotografías en PSINet."
+        )
+    else:
+        print(
+            "\nFormulario completo."
+            "\nCCTVFlow guardará la mantención y descargará el PDF."
+        )

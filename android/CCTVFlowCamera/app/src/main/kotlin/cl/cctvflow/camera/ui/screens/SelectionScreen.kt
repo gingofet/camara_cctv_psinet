@@ -11,12 +11,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -41,6 +44,8 @@ fun SelectionScreen(
     onCameraSelected: (String) -> Unit,
     onSearchChanged: (String) -> Unit,
     onContinue: () -> Unit,
+    onExportPhotos: () -> Unit,
+    onDismissError: () -> Unit,
 ) {
     Scaffold { innerPadding ->
         Column(
@@ -151,6 +156,20 @@ fun SelectionScreen(
                 }
             }
 
+            OutlinedButton(
+                onClick = onExportPhotos,
+                enabled = !state.isExporting,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (state.isExporting) {
+                    CircularProgressIndicator()
+                } else {
+                    Text("Crear ZIP y compartir")
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
             Button(
                 onClick = onContinue,
                 enabled = state.canOpenCamera,
@@ -159,6 +178,19 @@ fun SelectionScreen(
                 Text("Abrir cámara")
             }
         }
+    }
+
+    state.errorMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = onDismissError,
+            title = { Text("CCTVFlow Camera") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = onDismissError) {
+                    Text("Aceptar")
+                }
+            },
+        )
     }
 }
 
@@ -199,4 +231,3 @@ private fun SelectorMenu(
         }
     }
 }
-

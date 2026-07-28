@@ -3,7 +3,7 @@
 Aplicación Android nativa para capturar evidencias fotográficas de cámaras CCTV
 y guardarlas con nombres compatibles con el lector de evidencias de CCTVFlow.
 
-## MVP 0.1
+## MVP 0.2
 
 - Selección de división: `DCH-SUBTE` o `DRT`.
 - Selección de turno: `A` o `B`.
@@ -12,6 +12,8 @@ y guardarlas con nombres compatibles con el lector de evidencias de CCTVFlow.
 - Vista previa y captura con CameraX.
 - Correlativo independiente por cámara.
 - Guardado en `Pictures/CCTVFlow`.
+- Creación de un ZIP por división y turno.
+- Compartir el ZIP directamente con Drive u otra aplicación sin alterar los nombres.
 - Nombre compatible con CCTVFlow:
 
 ```text
@@ -49,6 +51,17 @@ camara_cctv_psinet/automatizacion/fotos/
 
 y ejecutar el lector habitual.
 
+También puedes seleccionar la división y el turno en la pantalla principal y
+presionar `Crear ZIP y compartir`. La aplicación reúne todas las fotografías de
+esa combinación y guarda el comprimido en:
+
+```text
+Download/CCTVFlow/
+```
+
+Los nombres de las imágenes dentro del ZIP se mantienen exactamente como fueron
+generados por CCTVFlow Camera.
+
 ## Arquitectura
 
 ```text
@@ -70,5 +83,5 @@ app/src/main/assets/catalogos/
 - Revisar una foto antes de confirmarla.
 - Registrar cámaras nuevas para revisión.
 - Marcar cámaras temporalmente deshabilitadas.
-- Exportar o sincronizar un lote de evidencias con el agente CCTVFlow.
+- Sincronizar un lote de evidencias directamente con el agente CCTVFlow.
 - Importar catálogos actualizados sin recompilar la aplicación.

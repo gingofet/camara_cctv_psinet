@@ -96,6 +96,36 @@ deben coincidir exactamente con los mostrados por PSINet.
 
 ## Fotografías
 
+### Lote automático desde la GUI
+
+La pestaña `Fotografías` de la GUI permite seleccionar una sola carpeta
+transferida desde CCTVFlow Camera. CCTVFlow:
+
+1. lee las imágenes de forma recursiva;
+2. identifica la cámara por el nombre y el correlativo final;
+3. selecciona automáticamente las cámaras detectadas;
+4. solicita el anverso y reverso del ART para cada área encontrada;
+5. carga las dos ART y todas las evidencias de cada cámara;
+6. guarda la mantención y descarga el PDF sin una pausa manual.
+
+La GUI trabaja directamente con los archivos seleccionados y no crea una copia
+organizada del lote, evitando ocupar el doble de espacio.
+
+La opción de limpieza elimina cada evidencia únicamente después de guardar su
+mantención y confirmar la descarga del PDF. Las ART se eliminan al completar
+todo el lote. Las fotografías fallidas o no detectadas se conservan.
+
+Cada lote automático crea además un punto de control en
+`runtime/ejecucion_pendiente.json`. Si PSINet genera un PDF incompleto,
+CCTVFlow conserva sus fotografías, marca esa cámara para revisión y continúa
+con las mantenciones siguientes. Si la aplicación o el navegador se cierran,
+el botón **Reanudar pendientes** ejecuta únicamente las cámaras que nunca
+comenzaron; omite tanto las ya validadas como las de estado incierto para no
+crear registros duplicados en PSINet.
+
+PSINet admite 15 imágenes por mantención. Dos lugares se reservan para las ART,
+por lo que la GUI acepta como máximo 13 evidencias por cámara.
+
 Las imágenes permanentes de la ART deben estar en:
 
 ```text

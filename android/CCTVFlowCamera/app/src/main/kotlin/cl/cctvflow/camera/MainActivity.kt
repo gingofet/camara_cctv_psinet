@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cl.cctvflow.camera.data.CatalogRepository
 import cl.cctvflow.camera.data.CounterRepository
+import cl.cctvflow.camera.data.PhotoArchiveRepository
 import cl.cctvflow.camera.ui.CCTVFlowApp
 import cl.cctvflow.camera.ui.CCTVFlowViewModel
 
@@ -18,6 +19,7 @@ class MainActivity : ComponentActivity() {
         val factory = CCTVFlowViewModel.Factory(
             catalogRepository = CatalogRepository(applicationContext),
             counterRepository = CounterRepository(applicationContext),
+            photoArchiveRepository = PhotoArchiveRepository(applicationContext),
         )
 
         setContent {
@@ -26,4 +28,3 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
