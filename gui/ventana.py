@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QThread, QTime, Qt, Slot
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import QThread, QTime, QTimer, Qt, Slot
+from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
+from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QGroupBox,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -38,11 +40,28 @@ from automatizacion.data.config import (
     OBSERVACION_DEFAULT,
     PARTICIPANTES_DEFAULT,
 )
+from gui.checkpoint import (
+    CHECKPOINT_PATH,
+    ESTADO_EN_PROCESO,
+    ESTADO_ERROR,
+    ESTADO_INCOMPLETO,
+    cargar_checkpoint,
+    crear_checkpoint,
+    plan_pendiente,
+    resumen_checkpoint,
+)
 from gui.planificador import (
+    MantenimientoPlanificado,
     cargar_catalogo,
     divisiones_disponibles,
     filtrar_camaras,
     generar_plan,
+)
+from gui.lote_fotos import (
+    EXTENSIONES_IMAGEN,
+    LoteFotografico,
+    analizar_carpeta,
+    validar_lote,
 )
 from gui.worker import EjecutorPSINet
 from psinet_auto_manual import obtener_fotos_art
@@ -55,6 +74,7 @@ OBSERVACIONES_SUGERIDAS = [
     "Limpieza, inspección y ajuste de cámara CCTV",
     "Revisión de funcionamiento y conectividad CCTV",
 ]
+RUTA_LOGO = Path(__file__).resolve().parent / "assets" / "cctvflow_logo.svg"
 
 
 class VentanaCCTVFlow(QMainWindow):
@@ -66,24 +86,35 @@ class VentanaCCTVFlow(QMainWindow):
         self.catalogo: dict[str, list[str]] = {}
         self.seleccionadas: set[str] = set()
         self.plan_actual = []
+        self.lote_fotos: LoteFotografico | None = None
+        self.arts_por_sector: dict[str, list[str]] = {}
+        self.lote_completo_en_ejecucion = False
+        self.limpieza_lote_completa = False
+        self.resumen_ejecucion: dict[str, int] = {}
+        self.checkpoint_activo: str | None = None
         self.hilo: QThread | None = None
         self.ejecutor: EjecutorPSINet | None = None
+        self._cerrar_al_finalizar = False
 
         self._construir_interfaz()
         self._conectar_eventos()
         self._cambiar_division()
+        self._actualizar_boton_reanudar()
 
     def _construir_interfaz(self) -> None:
         central = QWidget()
         principal = QVBoxLayout(central)
 
-        titulo = QLabel("CCTVFlow")
-        titulo.setStyleSheet("font-size: 24px; font-weight: 700;")
-        subtitulo = QLabel(
-            "Planificación y ejecución de mantenciones preventivas en PSINet"
+        logo = QSvgWidget(str(RUTA_LOGO))
+        logo.setFixedSize(310, 70)
+        logo.setAccessibleName(
+            "CCTVFlow · Automatización de mantenimiento CCTV"
         )
-        principal.addWidget(titulo)
-        principal.addWidget(subtitulo)
+        principal.addWidget(
+            logo,
+            0,
+            Qt.AlignmentFlag.AlignLeft,
+        )
 
         configuracion = QGroupBox("Configuración")
         formulario = QFormLayout(configuracion)
@@ -191,13 +222,86 @@ class VentanaCCTVFlow(QMainWindow):
         layout_ejecucion.addWidget(self.progreso)
         layout_ejecucion.addWidget(self.registro)
         self.pestanas.addTab(panel_ejecucion, "Ejecución")
+
+        panel_fotos = QWidget()
+        layout_fotos = QVBoxLayout(panel_fotos)
+
+        fila_carpeta = QHBoxLayout()
+        self.carpeta_fotos = QLineEdit()
+        self.carpeta_fotos.setReadOnly(True)
+        self.carpeta_fotos.setPlaceholderText(
+            "Selecciona la carpeta transferida desde CCTVFlow Camera..."
+        )
+        self.boton_importar_fotos = QPushButton(
+            "Importar carpeta de fotografías"
+        )
+        fila_carpeta.addWidget(self.carpeta_fotos, 1)
+        fila_carpeta.addWidget(self.boton_importar_fotos)
+
+        self.resumen_fotos = QLabel(
+            "Sin lote importado: se utilizará el flujo manual."
+        )
+        self.tabla_art = QTableWidget(0, 5)
+        self.tabla_art.setHorizontalHeaderLabels(
+            [
+                "Área detectada",
+                "Cámaras",
+                "Evidencias",
+                "ART anverso",
+                "ART reverso",
+            ]
+        )
+        self.tabla_art.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.tabla_art.horizontalHeader().setSectionResizeMode(
+            0,
+            QHeaderView.ResizeMode.Stretch,
+        )
+        for columna in range(1, 5):
+            self.tabla_art.horizontalHeader().setSectionResizeMode(
+                columna,
+                QHeaderView.ResizeMode.ResizeToContents,
+            )
+
+        self.no_detectadas = QTextEdit()
+        self.no_detectadas.setReadOnly(True)
+        self.no_detectadas.setMaximumHeight(90)
+        self.no_detectadas.setPlaceholderText(
+            "Aquí aparecerán las imágenes cuyos nombres no correspondan "
+            "al catálogo seleccionado."
+        )
+
+        self.eliminar_fotos = QCheckBox(
+            "Eliminar evidencias y ART después de confirmar su uso"
+        )
+        self.eliminar_fotos.setChecked(True)
+        nota_eliminacion = QLabel(
+            "Las evidencias se eliminan cámara por cámara solo después de "
+            "guardar en PSINet y descargar el PDF. Las ART se eliminan al "
+            "completar correctamente todas las cámaras detectadas. Los "
+            "archivos fallidos, pendientes o no detectados se conservan."
+        )
+        nota_eliminacion.setWordWrap(True)
+
+        layout_fotos.addLayout(fila_carpeta)
+        layout_fotos.addWidget(self.resumen_fotos)
+        layout_fotos.addWidget(self.tabla_art)
+        layout_fotos.addWidget(QLabel("Fotografías no detectadas"))
+        layout_fotos.addWidget(self.no_detectadas)
+        layout_fotos.addWidget(self.eliminar_fotos)
+        layout_fotos.addWidget(nota_eliminacion)
+        self.pestanas.addTab(panel_fotos, "Fotografías")
+
         principal.addWidget(self.pestanas)
 
         acciones = QHBoxLayout()
         self.boton_actualizar = QPushButton("Actualizar plan")
         self.boton_ejecutar = QPushButton("Ejecutar en PSINet")
+        self.boton_reanudar = QPushButton("Reanudar pendientes")
+        self.boton_reanudar.setEnabled(False)
         self.boton_confirmar = QPushButton(
-            "Foto cargada · Guardar y continuar"
+            "Continuar ejecución"
         )
         self.boton_confirmar.setEnabled(False)
         self.boton_detener = QPushButton("Detener")
@@ -206,10 +310,26 @@ class VentanaCCTVFlow(QMainWindow):
         acciones.addStretch()
         acciones.addWidget(self.boton_confirmar)
         acciones.addWidget(self.boton_detener)
+        acciones.addWidget(self.boton_reanudar)
         acciones.addWidget(self.boton_ejecutar)
         principal.addLayout(acciones)
 
         self.setCentralWidget(central)
+
+        self.atajo_enter = QShortcut(
+            QKeySequence(Qt.Key.Key_Return),
+            self,
+        )
+        self.atajo_enter.setContext(
+            Qt.ShortcutContext.ApplicationShortcut
+        )
+        self.atajo_enter_teclado_numerico = QShortcut(
+            QKeySequence(Qt.Key.Key_Enter),
+            self,
+        )
+        self.atajo_enter_teclado_numerico.setContext(
+            Qt.ShortcutContext.ApplicationShortcut
+        )
 
     def _conectar_eventos(self) -> None:
         self.combo_division.currentTextChanged.connect(
@@ -222,13 +342,25 @@ class VentanaCCTVFlow(QMainWindow):
         self.boton_limpiar.clicked.connect(self._limpiar_seleccion)
         self.boton_actualizar.clicked.connect(self._actualizar_plan)
         self.boton_ejecutar.clicked.connect(self._iniciar_ejecucion)
-        self.boton_confirmar.clicked.connect(self._confirmar_foto)
+        self.boton_reanudar.clicked.connect(self._reanudar_ejecucion)
+        self.boton_confirmar.clicked.connect(
+            self._confirmar_paso_manual
+        )
+        self.atajo_enter.activated.connect(
+            self._confirmar_paso_manual
+        )
+        self.atajo_enter_teclado_numerico.activated.connect(
+            self._confirmar_paso_manual
+        )
         self.boton_detener.clicked.connect(self._detener)
         self.boton_art_anverso.clicked.connect(
             lambda: self._elegir_foto_art(self.art_anverso)
         )
         self.boton_art_reverso.clicked.connect(
             lambda: self._elegir_foto_art(self.art_reverso)
+        )
+        self.boton_importar_fotos.clicked.connect(
+            self._importar_carpeta_fotos
         )
 
     def _cargar_art_predeterminadas(self) -> None:
@@ -286,11 +418,209 @@ class VentanaCCTVFlow(QMainWindow):
 
         return fotos
 
+    @Slot()
+    def _importar_carpeta_fotos(self) -> None:
+        directorio_inicial = (
+            self.carpeta_fotos.text().strip() or str(Path.home())
+        )
+        carpeta = QFileDialog.getExistingDirectory(
+            self,
+            "Seleccionar carpeta de fotografías",
+            directorio_inicial,
+        )
+
+        if not carpeta:
+            return
+
+        try:
+            lote = analizar_carpeta(carpeta, self.catalogo)
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Importar fotografías",
+                str(error),
+            )
+            return
+
+        if not lote.fotos_por_camara:
+            QMessageBox.warning(
+                self,
+                "Sin coincidencias",
+                "No se detectó ninguna cámara de la división "
+                f"{self.combo_division.currentText()}.\n\n"
+                "Revisa la división seleccionada y los nombres de archivo.",
+            )
+
+        self.lote_fotos = lote
+        self.carpeta_fotos.setText(str(lote.carpeta))
+        self.seleccionadas = set(lote.fotos_por_camara)
+        self.arts_por_sector.clear()
+        self._poblar_tabla_art()
+        self._mostrar_resumen_lote()
+        self._refrescar_lista()
+        self._actualizar_plan()
+        self.pestanas.setCurrentIndex(1)
+
+    def _poblar_tabla_art(self) -> None:
+        if self.lote_fotos is None:
+            self.tabla_art.setRowCount(0)
+            return
+
+        anteriores = self.arts_por_sector
+        self.arts_por_sector = {
+            sector: anteriores.get(sector, ["", ""]).copy()
+            for sector in self.lote_fotos.sectores
+        }
+        self.tabla_art.setRowCount(len(self.lote_fotos.sectores))
+
+        for fila, sector in enumerate(self.lote_fotos.sectores):
+            camaras = [
+                camara
+                for camara, area in (
+                    self.lote_fotos.sector_por_camara.items()
+                )
+                if area == sector
+            ]
+            cantidad_fotos = sum(
+                len(self.lote_fotos.fotos_por_camara[camara])
+                for camara in camaras
+            )
+
+            self.tabla_art.setItem(
+                fila,
+                0,
+                QTableWidgetItem(sector),
+            )
+            self.tabla_art.setItem(
+                fila,
+                1,
+                QTableWidgetItem(str(len(camaras))),
+            )
+            self.tabla_art.setItem(
+                fila,
+                2,
+                QTableWidgetItem(str(cantidad_fotos)),
+            )
+
+            for cara, columna in enumerate((3, 4)):
+                boton = QPushButton()
+                self._actualizar_texto_boton_art(
+                    boton,
+                    self.arts_por_sector[sector][cara],
+                )
+                boton.clicked.connect(
+                    lambda _marcado=False,
+                    area=sector,
+                    indice=cara,
+                    control=boton: self._elegir_art_sector(
+                        area,
+                        indice,
+                        control,
+                    )
+                )
+                self.tabla_art.setCellWidget(fila, columna, boton)
+
+        self.tabla_art.resizeRowsToContents()
+
+    def _actualizar_texto_boton_art(
+        self,
+        boton: QPushButton,
+        ruta: str,
+    ) -> None:
+        if ruta:
+            boton.setText(Path(ruta).name)
+            boton.setToolTip(ruta)
+        else:
+            boton.setText("Seleccionar…")
+            boton.setToolTip("")
+
+    def _elegir_art_sector(
+        self,
+        sector: str,
+        cara: int,
+        boton: QPushButton,
+    ) -> None:
+        ruta_actual = self.arts_por_sector[sector][cara]
+        directorio = (
+            str(Path(ruta_actual).parent)
+            if ruta_actual
+            else (
+                self.carpeta_fotos.text().strip()
+                or str(Path.home())
+            )
+        )
+        ruta, _ = QFileDialog.getOpenFileName(
+            self,
+            f"Seleccionar ART para {sector}",
+            directorio,
+            FILTRO_IMAGENES,
+        )
+
+        if ruta:
+            self.arts_por_sector[sector][cara] = ruta
+            self._actualizar_texto_boton_art(boton, ruta)
+
+    def _mostrar_resumen_lote(self) -> None:
+        if self.lote_fotos is None:
+            self.resumen_fotos.setText(
+                "Sin lote importado: se utilizará el flujo manual."
+            )
+            self.no_detectadas.clear()
+            return
+
+        self.resumen_fotos.setText(
+            f"{self.lote_fotos.cantidad_fotos} evidencias detectadas · "
+            f"{len(self.lote_fotos.fotos_por_camara)} cámaras · "
+            f"{len(self.lote_fotos.sectores)} áreas · "
+            f"{len(self.lote_fotos.no_detectadas)} no detectadas"
+        )
+        self.no_detectadas.setPlainText(
+            "\n".join(
+                f"{item.ruta.name}: {item.motivo}"
+                for item in self.lote_fotos.no_detectadas
+            )
+        )
+
+    def _fotos_art_por_sector(
+        self,
+        sectores: set[str],
+    ) -> dict[str, list[str]]:
+        resultado: dict[str, list[str]] = {}
+
+        for sector in sectores:
+            fotos = self.arts_por_sector.get(sector, ["", ""])
+
+            if len(fotos) != 2 or not all(fotos):
+                raise ValueError(
+                    f"Falta seleccionar el anverso o reverso del ART de "
+                    f"{sector}."
+                )
+
+            for foto in fotos:
+                ruta = Path(foto)
+
+                if not ruta.is_file():
+                    raise FileNotFoundError(
+                        f"No se encontró la fotografía ART: {ruta}"
+                    )
+
+                if ruta.suffix.casefold() not in EXTENSIONES_IMAGEN:
+                    raise ValueError(
+                        f"Formato de imagen no permitido: {ruta.name}"
+                    )
+
+            resultado[sector] = fotos.copy()
+
+        return resultado
+
     def _observacion(self) -> str:
         return self.observacion.currentText().strip() or OBSERVACION_DEFAULT
 
     @Slot()
     def _cambiar_division(self) -> None:
+        if self.lote_fotos is not None:
+            self._limpiar_lote()
+
         try:
             self.catalogo = cargar_catalogo(self.combo_division.currentText())
         except Exception as error:
@@ -421,6 +751,49 @@ class VentanaCCTVFlow(QMainWindow):
             if nombre.strip()
         ]
 
+    def _limpiar_lote(self) -> None:
+        self.lote_fotos = None
+        self.arts_por_sector.clear()
+        self.carpeta_fotos.clear()
+        self.tabla_art.setRowCount(0)
+        self.no_detectadas.clear()
+        self._mostrar_resumen_lote()
+
+    def _actualizar_boton_reanudar(self) -> None:
+        try:
+            datos = cargar_checkpoint()
+        except RuntimeError as error:
+            self.boton_reanudar.setEnabled(False)
+            self.boton_reanudar.setToolTip(str(error))
+            return
+
+        if datos is None:
+            self.boton_reanudar.setText("Reanudar pendientes")
+            self.boton_reanudar.setEnabled(False)
+            self.boton_reanudar.setToolTip(
+                "No existe una ejecución pendiente."
+            )
+            return
+
+        resumen = resumen_checkpoint(datos)
+        pendientes = resumen.get("pendiente", 0)
+        revision = sum(
+            resumen.get(estado, 0)
+            for estado in (
+                ESTADO_EN_PROCESO,
+                ESTADO_INCOMPLETO,
+                ESTADO_ERROR,
+            )
+        )
+        self.boton_reanudar.setText(
+            f"Reanudar pendientes ({pendientes})"
+        )
+        self.boton_reanudar.setEnabled(pendientes > 0)
+        self.boton_reanudar.setToolTip(
+            f"{pendientes} cámara(s) no iniciadas y "
+            f"{revision} que requieren revisión."
+        )
+
     @Slot()
     def _iniciar_ejecucion(self) -> None:
         self._actualizar_plan()
@@ -441,25 +814,114 @@ class VentanaCCTVFlow(QMainWindow):
             )
             return
 
+        fotos_art: list[str] = []
+        fotos_por_camara: dict[str, list[str]] = {}
+        fotos_art_por_sector: dict[str, list[str]] = {}
+        modo_automatico = self.lote_fotos is not None
+        self.lote_completo_en_ejecucion = False
+
         try:
-            fotos_art = self._fotos_art()
+            if modo_automatico:
+                assert self.lote_fotos is not None
+                camaras = [item.camara for item in self.plan_actual]
+                problemas = validar_lote(self.lote_fotos, camaras)
+
+                if problemas:
+                    detalle = "\n".join(f"• {error}" for error in problemas)
+                    raise ValueError(
+                        "El lote no puede ejecutarse automáticamente:\n"
+                        f"{detalle}"
+                    )
+
+                sectores = {item.sector for item in self.plan_actual}
+                fotos_art_por_sector = self._fotos_art_por_sector(
+                    sectores
+                )
+                fotos_por_camara = {
+                    camara: [
+                        str(ruta)
+                        for ruta in self.lote_fotos.fotos_por_camara[camara]
+                    ]
+                    for camara in camaras
+                }
+                self.lote_completo_en_ejecucion = (
+                    set(camaras)
+                    == set(self.lote_fotos.fotos_por_camara)
+                )
+            else:
+                fotos_art = self._fotos_art()
         except Exception as error:
-            QMessageBox.critical(self, "Fotografías ART", str(error))
+            QMessageBox.critical(self, "Fotografías", str(error))
             return
+
+        if modo_automatico:
+            cantidad_evidencias = sum(
+                len(fotos) for fotos in fotos_por_camara.values()
+            )
+            limpieza = (
+                "\n\nAl confirmar cada mantención se eliminarán sus "
+                "evidencias. "
+                + (
+                    "Las ART se eliminarán al completar todo el lote."
+                    if self.lote_completo_en_ejecucion
+                    else (
+                        "Las ART se conservarán porque quedaron cámaras "
+                        "detectadas fuera del plan."
+                    )
+                )
+                if self.eliminar_fotos.isChecked()
+                else "\n\nLas fotografías originales se conservarán."
+            )
+            descripcion = (
+                f"Se procesarán automáticamente "
+                f"{len(self.plan_actual)} mantenciones con "
+                f"{cantidad_evidencias} evidencias en "
+                f"{len(fotos_art_por_sector)} áreas."
+                f"{limpieza}"
+            )
+        else:
+            descripcion = (
+                f"Se procesarán {len(self.plan_actual)} mantenciones. "
+                "La fotografía de cada cámara se cargará manualmente."
+            )
 
         confirmacion = QMessageBox.question(
             self,
             "Iniciar ejecución",
-            f"Se procesarán {len(self.plan_actual)} mantenciones en "
-            f"{self.combo_division.currentText()}.\n\n"
+            f"{descripcion}\n\n"
+            f"División: {self.combo_division.currentText()}.\n\n"
             "¿Deseas abrir PSINet y continuar?",
         )
 
         if confirmacion != QMessageBox.StandardButton.Yes:
             return
 
-        self.hilo = QThread(self)
-        self.ejecutor = EjecutorPSINet(
+        checkpoint_path: str | None = None
+
+        if modo_automatico:
+            checkpoint_path = str(
+                crear_checkpoint(
+                    division=self.combo_division.currentText(),
+                    plan=self.plan_actual.copy(),
+                    participantes=self._participantes(),
+                    apr_participa=self.apr.isChecked(),
+                    equipo_alza_hombre=self.alza.isChecked(),
+                    observacion=self._observacion(),
+                    fotos_por_camara=fotos_por_camara,
+                    fotos_art_por_sector=fotos_art_por_sector,
+                    eliminar_fotos_tras_exito=(
+                        self.eliminar_fotos.isChecked()
+                    ),
+                    eliminar_art_tras_exito=(
+                        self.eliminar_fotos.isChecked()
+                        and self.lote_completo_en_ejecucion
+                    ),
+                )
+            )
+            self.checkpoint_activo = checkpoint_path
+            self._actualizar_boton_reanudar()
+
+        self._lanzar_ejecutor(
             division=self.combo_division.currentText(),
             plan=self.plan_actual.copy(),
             participantes=self._participantes(),
@@ -467,12 +929,63 @@ class VentanaCCTVFlow(QMainWindow):
             equipo_alza_hombre=self.alza.isChecked(),
             fotos_art=fotos_art,
             observacion=self._observacion(),
+            fotos_por_camara=fotos_por_camara,
+            fotos_art_por_sector=fotos_art_por_sector,
+            eliminar_fotos_tras_exito=(
+                modo_automatico and self.eliminar_fotos.isChecked()
+            ),
+            eliminar_art_tras_exito=(
+                modo_automatico
+                and self.eliminar_fotos.isChecked()
+                and self.lote_completo_en_ejecucion
+            ),
+            checkpoint_path=checkpoint_path,
+        )
+
+    def _lanzar_ejecutor(
+        self,
+        *,
+        division: str,
+        plan: list[MantenimientoPlanificado],
+        participantes: list[str],
+        apr_participa: bool,
+        equipo_alza_hombre: bool,
+        fotos_art: list[str],
+        observacion: str,
+        fotos_por_camara: dict[str, list[str]],
+        fotos_art_por_sector: dict[str, list[str]],
+        eliminar_fotos_tras_exito: bool,
+        eliminar_art_tras_exito: bool,
+        checkpoint_path: str | None,
+    ) -> None:
+        self.hilo = QThread(self)
+        self.limpieza_lote_completa = False
+        self.resumen_ejecucion = {}
+        self.ejecutor = EjecutorPSINet(
+            division=division,
+            plan=plan,
+            participantes=participantes,
+            apr_participa=apr_participa,
+            equipo_alza_hombre=equipo_alza_hombre,
+            fotos_art=fotos_art,
+            observacion=observacion,
+            fotos_por_camara=fotos_por_camara,
+            fotos_art_por_sector=fotos_art_por_sector,
+            eliminar_fotos_tras_exito=eliminar_fotos_tras_exito,
+            eliminar_art_tras_exito=eliminar_art_tras_exito,
+            checkpoint_path=checkpoint_path,
         )
         self.ejecutor.moveToThread(self.hilo)
         self.hilo.started.connect(self.ejecutor.ejecutar)
         self.ejecutor.mensaje.connect(self._registrar)
         self.ejecutor.progreso.connect(self._mostrar_progreso)
-        self.ejecutor.espera_foto.connect(self._esperar_foto)
+        self.ejecutor.espera_manual.connect(
+            self._esperar_confirmacion_manual
+        )
+        self.ejecutor.resultado_limpieza.connect(
+            self._registrar_resultado_limpieza
+        )
+        self.ejecutor.resumen.connect(self._registrar_resumen)
         self.ejecutor.finalizado.connect(self._ejecucion_finalizada)
         self.ejecutor.detenido.connect(self._ejecucion_detenida)
         self.ejecutor.error.connect(self._ejecucion_error)
@@ -489,10 +1002,124 @@ class VentanaCCTVFlow(QMainWindow):
         self.hilo.finished.connect(self._limpiar_hilo)
 
         self.registro.clear()
-        self.progreso.setRange(0, len(self.plan_actual))
+        self.progreso.setRange(0, len(plan))
         self._bloquear_configuracion(True)
         self.estado.setText("Abriendo Chromium e iniciando sesión...")
         self.hilo.start()
+
+    @Slot()
+    def _reanudar_ejecucion(self) -> None:
+        try:
+            datos = cargar_checkpoint()
+
+            if datos is None:
+                raise RuntimeError(
+                    "No existe una ejecución pendiente para reanudar."
+                )
+
+            plan = plan_pendiente(datos)
+
+            if not plan:
+                raise RuntimeError(
+                    "El último lote no tiene cámaras pendientes sin iniciar."
+                )
+
+            fotos_por_camara = {
+                item.camara: list(
+                    datos["fotos_por_camara"][item.camara]
+                )
+                for item in plan
+            }
+            sectores = {item.sector for item in plan}
+            fotos_art_por_sector = {
+                sector: list(datos["fotos_art_por_sector"][sector])
+                for sector in sectores
+            }
+
+            rutas = [
+                Path(ruta)
+                for fotos in fotos_por_camara.values()
+                for ruta in fotos
+            ] + [
+                Path(ruta)
+                for fotos in fotos_art_por_sector.values()
+                for ruta in fotos
+            ]
+            faltantes = [ruta for ruta in rutas if not ruta.is_file()]
+
+            if faltantes:
+                nombres = "\n".join(
+                    f"• {ruta}" for ruta in faltantes[:10]
+                )
+                raise FileNotFoundError(
+                    "Faltan archivos necesarios para reanudar:\n"
+                    f"{nombres}"
+                )
+        except Exception as error:
+            QMessageBox.critical(self, "Reanudar ejecución", str(error))
+            self._actualizar_boton_reanudar()
+            return
+
+        resumen = resumen_checkpoint(datos)
+        revision = sum(
+            resumen.get(estado, 0)
+            for estado in (
+                ESTADO_EN_PROCESO,
+                ESTADO_INCOMPLETO,
+                ESTADO_ERROR,
+            )
+        )
+        aviso_revision = (
+            f"\n\n{revision} cámara(s) ya alcanzaron PSINet y requieren "
+            "revisión manual; no se repetirán para evitar duplicados."
+            if revision
+            else ""
+        )
+        confirmacion = QMessageBox.question(
+            self,
+            "Reanudar ejecución",
+            f"Se ejecutarán únicamente {len(plan)} cámara(s) que nunca "
+            "alcanzaron a iniciarse. Las completadas se omitirán."
+            f"{aviso_revision}\n\n¿Deseas continuar?",
+        )
+
+        if confirmacion != QMessageBox.StandardButton.Yes:
+            return
+
+        configuracion = datos["configuracion"]
+        division = datos["division"]
+        self.combo_division.setCurrentText(division)
+        self.participantes.setText(
+            ", ".join(configuracion["participantes"])
+        )
+        self.apr.setChecked(configuracion["apr_participa"])
+        self.alza.setChecked(configuracion["equipo_alza_hombre"])
+        self.observacion.setCurrentText(configuracion["observacion"])
+        self.checkpoint_activo = str(CHECKPOINT_PATH)
+        self.lote_completo_en_ejecucion = False
+        self._lanzar_ejecutor(
+            division=division,
+            plan=plan,
+            participantes=list(configuracion["participantes"]),
+            apr_participa=configuracion["apr_participa"],
+            equipo_alza_hombre=(
+                configuracion["equipo_alza_hombre"]
+            ),
+            fotos_art=[],
+            observacion=configuracion["observacion"],
+            fotos_por_camara=fotos_por_camara,
+            fotos_art_por_sector=fotos_art_por_sector,
+            eliminar_fotos_tras_exito=(
+                configuracion["eliminar_fotos_tras_exito"]
+            ),
+            # Nunca se eliminan ART si el lote contiene resultados
+            # incompletos o de estado incierto.
+            eliminar_art_tras_exito=(
+                configuracion["eliminar_art_tras_exito"]
+                and revision == 0
+            ),
+            checkpoint_path=str(CHECKPOINT_PATH),
+        )
 
     def _bloquear_configuracion(self, ejecutando: bool) -> None:
         for control in (
@@ -510,9 +1137,14 @@ class VentanaCCTVFlow(QMainWindow):
             self.art_reverso,
             self.boton_art_anverso,
             self.boton_art_reverso,
+            self.carpeta_fotos,
+            self.boton_importar_fotos,
+            self.tabla_art,
+            self.eliminar_fotos,
             self.boton_todas,
             self.boton_limpiar,
             self.boton_actualizar,
+            self.boton_reanudar,
             self.boton_ejecutar,
         ):
             control.setEnabled(not ejecutando)
@@ -525,6 +1157,14 @@ class VentanaCCTVFlow(QMainWindow):
         barra = self.registro.verticalScrollBar()
         barra.setValue(barra.maximum())
 
+    @Slot(bool)
+    def _registrar_resultado_limpieza(self, completa: bool) -> None:
+        self.limpieza_lote_completa = completa
+
+    @Slot(object)
+    def _registrar_resumen(self, resumen: dict[str, int]) -> None:
+        self.resumen_ejecucion = dict(resumen)
+
     @Slot(int, int, str)
     def _mostrar_progreso(self, actual: int, total: int, camara: str) -> None:
         self.progreso.setRange(0, total)
@@ -532,29 +1172,34 @@ class VentanaCCTVFlow(QMainWindow):
         self.estado.setText(f"Preparando {actual}/{total}: {camara}")
         self._registrar(f"\n▶ {actual}/{total} · {camara}")
 
-    @Slot(str)
-    def _esperar_foto(self, camara: str) -> None:
-        self.estado.setText(
-            f"Sube la fotografía del mantenimiento en Chromium: {camara}"
-        )
+    @Slot(str, str)
+    def _esperar_confirmacion_manual(
+        self,
+        mensaje: str,
+        texto_boton: str,
+    ) -> None:
+        self.estado.setText(mensaje)
+        self.boton_confirmar.setText(texto_boton)
         self.boton_confirmar.setEnabled(True)
         QApplication.alert(self, 0)
-        QMessageBox.information(
-            self,
-            "Fotografía pendiente",
-            "Las fotografías ART ya fueron cargadas.\n\n"
-            "Sube manualmente la fotografía del mantenimiento en Chromium "
-            "y luego presiona «Foto cargada · Guardar y continuar».",
+        self._registrar(
+            "\n⏸ Acción manual pendiente: "
+            f"{mensaje}\n"
+            "Cuando termines, vuelve a CCTVFlow y presiona Enter o "
+            f"«{texto_boton}»."
         )
 
     @Slot()
-    def _confirmar_foto(self) -> None:
-        if self.ejecutor is None:
+    def _confirmar_paso_manual(self) -> None:
+        if (
+            self.ejecutor is None
+            or not self.boton_confirmar.isEnabled()
+        ):
             return
 
         self.boton_confirmar.setEnabled(False)
-        self.estado.setText("Guardando la mantención...")
-        self.ejecutor.confirmar_foto()
+        self.estado.setText("Continuando la ejecución...")
+        self.ejecutor.confirmar_paso_manual()
 
     @Slot()
     def _detener(self) -> None:
@@ -569,17 +1214,78 @@ class VentanaCCTVFlow(QMainWindow):
 
     @Slot()
     def _ejecucion_finalizada(self) -> None:
+        lote_con_limpieza = (
+            self.lote_fotos is not None
+            and self.eliminar_fotos.isChecked()
+        )
+        lote_completo = self.lote_completo_en_ejecucion
+        carpeta_lote = (
+            self.lote_fotos.carpeta
+            if self.lote_fotos is not None
+            else None
+        )
         self.progreso.setValue(self.progreso.maximum())
-        self.estado.setText("Plan completado correctamente.")
-        self._registrar("\n✓ Ejecución finalizada.")
+        incompletas = self.resumen_ejecucion.get(
+            ESTADO_INCOMPLETO,
+            0,
+        )
+        revision = sum(
+            self.resumen_ejecucion.get(estado, 0)
+            for estado in (ESTADO_EN_PROCESO, ESTADO_ERROR)
+        )
+        pendientes = self.resumen_ejecucion.get("pendiente", 0)
+
+        if incompletas or revision or pendientes:
+            self.estado.setText(
+                "Lote terminado con mantenciones que requieren revisión."
+            )
+            self._registrar(
+                "\n⚠ Ejecución terminada con incidencias: "
+                f"{incompletas} PDF incompleto(s), "
+                f"{revision} estado(s) incierto(s) y "
+                f"{pendientes} pendiente(s)."
+            )
+        else:
+            self.estado.setText("Plan completado correctamente.")
+            self._registrar("\n✓ Ejecución finalizada.")
+
         self._bloquear_configuracion(False)
+        self._actualizar_boton_reanudar()
         self.boton_confirmar.setEnabled(False)
+
+        if (
+            lote_con_limpieza
+            and lote_completo
+            and self.limpieza_lote_completa
+        ):
+            self._limpiar_lote()
+            self.seleccionadas.clear()
+            self._refrescar_lista()
+            self._actualizar_plan()
+        elif lote_con_limpieza and carpeta_lote is not None:
+            try:
+                self.lote_fotos = analizar_carpeta(
+                    carpeta_lote,
+                    self.catalogo,
+                )
+                self.seleccionadas = set(
+                    self.lote_fotos.fotos_por_camara
+                )
+                self._poblar_tabla_art()
+                self._mostrar_resumen_lote()
+                self._refrescar_lista()
+                self._actualizar_plan()
+            except Exception as error:
+                self._registrar(
+                    f"No se pudo actualizar el lote pendiente: {error}"
+                )
 
     @Slot()
     def _ejecucion_detenida(self) -> None:
         self.estado.setText("Ejecución detenida.")
         self._registrar("\n■ Ejecución detenida por el usuario.")
         self._bloquear_configuracion(False)
+        self._actualizar_boton_reanudar()
         self.boton_confirmar.setEnabled(False)
 
     @Slot(str)
@@ -587,6 +1293,7 @@ class VentanaCCTVFlow(QMainWindow):
         self.estado.setText("La ejecución terminó con un error.")
         self._registrar(f"\nERROR:\n{detalle}")
         self._bloquear_configuracion(False)
+        self._actualizar_boton_reanudar()
         self.boton_confirmar.setEnabled(False)
         QMessageBox.critical(
             self,
@@ -599,13 +1306,32 @@ class VentanaCCTVFlow(QMainWindow):
         self.hilo = None
         self.ejecutor = None
 
+        if self._cerrar_al_finalizar:
+            QTimer.singleShot(0, self.close)
+
     def closeEvent(self, evento: QCloseEvent) -> None:
         if self.hilo is not None and self.hilo.isRunning():
-            QMessageBox.warning(
+            respuesta = QMessageBox.question(
                 self,
                 "Ejecución activa",
-                "Detén la ejecución antes de cerrar CCTVFlow.",
+                "CCTVFlow todavía está ejecutando una mantención.\n\n"
+                "¿Deseas detenerla y cerrar la aplicación?",
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
             )
+
+            if respuesta == QMessageBox.StandardButton.Yes:
+                self._cerrar_al_finalizar = True
+                self.estado.setText(
+                    "Deteniendo la ejecución para cerrar CCTVFlow..."
+                )
+                self.boton_confirmar.setEnabled(False)
+                self.boton_detener.setEnabled(False)
+
+                if self.ejecutor is not None:
+                    self.ejecutor.solicitar_detencion()
+
             evento.ignore()
             return
 
