@@ -2,31 +2,23 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Menu PSINet",
+            "name": "CCTVFlow",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/automatizacion/menu_psinet.py",
+            "module": "cctvflow",
             "console": "integratedTerminal"
         },
         {
-            "name": "Lector Fotos",
+            "name": "Pruebas CCTVFlow",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/automatizacion/lector_fotos.py",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Generar Plan",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/automatizacion/generar_plan_desde_fotos.py",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "PSINet Auto",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/automatizacion/psinet_auto.py",
+            "module": "unittest",
+            "args": [
+                "discover",
+                "-s",
+                "tests",
+                "-v"
+            ],
             "console": "integratedTerminal"
         }
     ]

@@ -1,142 +1,114 @@
-# 🚀 CCTVFlow
+# CCTVFlow
 
-> Automatización asistida de mantenciones preventivas de cámaras CCTV en
-> PSINet.
+Automatización asistida de mantenciones preventivas de cámaras CCTV.
 
-CCTVFlow es una herramienta en Python que automatiza el trabajo administrativo
-posterior a una mantención preventiva: crea la tarea y su actividad, completa el
-checklist, adjunta las fotografías de la ART, guarda el registro y descarga el
-informe PDF generado por PSINet.
+CCTVFlow prepara y ejecuta lotes de mantenimiento en un portal web, completa
+los checklist, adjunta evidencias, descarga el informe PDF y conserva un punto
+de control para continuar después de una interrupción.
 
-El navegador se mantiene visible durante la ejecución para que el usuario pueda
-supervisar el proceso e intervenir cuando sea necesario.
+> CCTVFlow es un proyecto independiente. No es un producto oficial, patrocinado
+> ni propiedad del proveedor del portal o de las empresas donde se utilice.
 
-## Objetivo
+## Funciones principales
 
-Reducir el tiempo dedicado a tareas repetitivas en PSINet, minimizar errores de
-digitación y mantener un flujo trazable desde las evidencias fotográficas hasta
-el informe final.
+- Selección por división, sector o cámara.
+- Planificación automática de intervalos consecutivos.
+- Procesamiento de carpetas exportadas por CCTVFlow Camera.
+- Selección de participantes y opciones operacionales.
+- Checklist diferenciado para cámaras IP y no IP.
+- Carga verificada de ART y evidencias fotográficas.
+- Descarga y validación del número de páginas del PDF.
+- Continuación del lote cuando un informe sale incompleto.
+- Checkpoint para reanudar únicamente cámaras que nunca comenzaron.
+- Eliminación opcional de evidencias solo después de validar el informe.
 
-## Estado actual
+## Arquitectura
 
-El motor principal se ejecuta con:
-
-```bash
-python -m psinet_auto_manual
-```
-
-Actualmente permite:
-
-- iniciar Chromium e ingresar a PSINet con credenciales locales;
-- seleccionar la división antes de comenzar;
-- trabajar con `DCH-SUBTE` y `DRT`;
-- crear tareas de mantención programada y sus actividades;
-- asignar horarios consecutivos de 10 minutos;
-- buscar y seleccionar la cámara correspondiente;
-- seleccionar participantes configurados;
-- completar Estado General y Conexiones;
-- configurar APR y equipo alza hombre;
-- adjuntar automáticamente `ART` y `ART_atras`;
-- dejar disponible un campo para cargar manualmente la foto de la mantención;
-- guardar la actividad y descargar el PDF en `downloads/pdfs/`;
-- procesar varias cámaras dentro de una misma sesión.
-
-> [!IMPORTANT]
-> El flujo de DRT continúa en validación en PSINet. El selector dinámico del
-> bloque **CONEXIONES** ya fue implementado para evitar depender de IDs fijos,
-> pero debe verificarse de extremo a extremo antes de considerarlo estable.
-
-## Flujo actual
-
-```mermaid
-flowchart TD
-    A["Seleccionar división y hora"] --> B["Abrir Chromium e iniciar sesión"]
-    B --> C["Ingresar cámara"]
-    C --> D["Crear tarea y actividad"]
-    D --> E["Completar checklist y cierre"]
-    E --> F["Subir ART y ART_atras"]
-    F --> G["Agregar foto de mantención manualmente"]
-    G --> H["Guardar y descargar PDF"]
-    H --> I{"¿Otra cámara?"}
-    I -->|Sí| C
-    I -->|No| J["Finalizar sesión"]
-```
-
-También existe un flujo de preparación de evidencias a partir del nombre de las
-fotografías:
+El código de la aplicación vive en un único paquete. Las carpetas principales
+del repositorio quedan reducidas a la aplicación, sus pruebas y los datos de
+ejecución:
 
 ```text
-automatizacion/fotos/
-        ↓
-lector_fotos.py
-        ↓
-automatizacion/evidencias.json
-        ↓
-automatizacion/generar_plan_desde_fotos.py
-        ↓
-automatizacion/plan_ejecucion.json
+CCTVFlow/
+├── cctvflow/
+│   ├── portal/              # Selectores y flujo del portal web
+│   ├── resources/
+│   │   ├── art/             # ART.jpg y ART_atras.jpg (solo locales)
+│   │   └── catalogs/        # Catálogos por división
+│   ├── ui/                  # Ventana principal y ejecutor en segundo plano
+│   ├── checkpoint.py        # Recuperación segura de lotes
+│   ├── config.py            # Configuración y rutas
+│   ├── models.py            # Modelos inmutables
+│   ├── photo_batch.py       # Detección de evidencias
+│   └── planning.py          # Búsqueda y horarios
+├── tests/
+├── runtime/
+├── downloads/
+├── pyproject.toml
+└── requirements.txt
 ```
 
-El menú `python -m automatizacion.menu_psinet` permite buscar cámaras, elegir un
-sector y previsualizar horarios. Por ahora genera solamente la planificación:
-todavía no inicia Playwright.
+La GUI no contiene selectores del portal. El ejecutor coordina el lote y el
+paquete `cctvflow.portal` concentra todos los detalles de Playwright. Los datos
+que cruzan ambas capas usan modelos inmutables en lugar de diccionarios sin
+tipo.
 
-## Divisiones y catálogos
+## Instalación
 
-Las divisiones disponibles se definen en
-`automatizacion/data/config.py`:
+Requiere Python 3.12 o superior.
 
-| División | Catálogo |
-| --- | --- |
-| `DCH-SUBTE` | `automatizacion/data/sectores.json` |
-| `DRT` | `automatizacion/data/sectores_drt.json` |
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+playwright install chromium
+```
 
-El catálogo de DRT contiene 156 cámaras distribuidas en 11 áreas. Los nombres
-deben coincidir exactamente con los mostrados por PSINet.
+En PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+playwright install chromium
+```
+
+## Configuración local
+
+Copia `.env.example` como `.env` y completa los datos del portal:
+
+```dotenv
+CCTVFLOW_PORTAL_URL=https://direccion-del-portal/login
+CCTVFLOW_PORTAL_USER=usuario@ejemplo.cl
+CCTVFLOW_PORTAL_PASSWORD=contraseña
+```
+
+El archivo `.env` está excluido de Git. No publiques credenciales, fotografías
+operacionales ni informes.
+
+Guarda las fotografías permanentes del ART en:
+
+```text
+cctvflow/resources/art/ART.jpg
+cctvflow/resources/art/ART_atras.jpg
+```
+
+## Ejecución
+
+```bash
+python -m cctvflow
+```
+
+El comando histórico continúa disponible durante la transición:
+
+```bash
+python -m cctvflow_gui
+```
 
 ## Fotografías
 
-### Lote automático desde la GUI
-
-La pestaña `Fotografías` de la GUI permite seleccionar una sola carpeta
-transferida desde CCTVFlow Camera. CCTVFlow:
-
-1. lee las imágenes de forma recursiva;
-2. identifica la cámara por el nombre y el correlativo final;
-3. selecciona automáticamente las cámaras detectadas;
-4. solicita el anverso y reverso del ART para cada área encontrada;
-5. carga las dos ART y todas las evidencias de cada cámara;
-6. guarda la mantención y descarga el PDF sin una pausa manual.
-
-La GUI trabaja directamente con los archivos seleccionados y no crea una copia
-organizada del lote, evitando ocupar el doble de espacio.
-
-La opción de limpieza elimina cada evidencia únicamente después de guardar su
-mantención y confirmar la descarga del PDF. Las ART se eliminan al completar
-todo el lote. Las fotografías fallidas o no detectadas se conservan.
-
-Cada lote automático crea además un punto de control en
-`runtime/ejecucion_pendiente.json`. Si PSINet genera un PDF incompleto,
-CCTVFlow conserva sus fotografías, marca esa cámara para revisión y continúa
-con las mantenciones siguientes. Si la aplicación o el navegador se cierran,
-el botón **Reanudar pendientes** ejecuta únicamente las cámaras que nunca
-comenzaron; omite tanto las ya validadas como las de estado incierto para no
-crear registros duplicados en PSINet.
-
-PSINet admite 15 imágenes por mantención. Dos lugares se reservan para las ART,
-por lo que la GUI acepta como máximo 13 evidencias por cámara.
-
-Las imágenes permanentes de la ART deben estar en:
-
-```text
-automatizacion/data/art/
-├── ART.jpg
-└── ART_atras.jpg
-```
-
-Se admiten extensiones `.jpg`, `.jpeg` y `.png`.
-
-Para las fotografías de cámaras se utiliza el formato:
+CCTVFlow Camera genera archivos con el formato:
 
 ```text
 <nombre_camara>_<correlativo>.jpg
@@ -145,134 +117,40 @@ Para las fotografías de cámaras se utiliza el formato:
 Ejemplo:
 
 ```text
-20740_Cruce_Rampa_4_0001.jpg
+RTAPIP001-Vista_oruga_1_0001.jpg
 ```
 
-## Estructura principal
+La GUI analiza una carpeta de forma recursiva y relaciona cada imagen con el
+catálogo de la división seleccionada. Cada mantención admite hasta 13
+evidencias porque dos espacios se reservan para el ART.
+
+## Recuperación y seguridad
+
+El estado del lote se guarda atómicamente en:
 
 ```text
-camara_cctv_psinet/
-├── automatizacion/
-│   ├── data/
-│   │   ├── art/
-│   │   ├── config.py
-│   │   ├── sectores.json
-│   │   └── sectores_drt.json
-│   ├── fotos/
-│   ├── generar_plan_desde_fotos.py
-│   └── menu_psinet.py
-├── downloads/
-│   └── pdfs/
-├── psinet/
-│   ├── descargas.py
-│   ├── login.py
-│   ├── navegador.py
-│   └── tareas.py
-├── utils/
-├── lector_fotos.py
-├── psinet_auto_manual.py
-├── requirements.txt
-└── todo.md
+runtime/ejecucion_pendiente.json
 ```
 
-## Instalación
+- Un PDF incompleto se marca para revisión y no detiene las cámaras siguientes.
+- Las imágenes relacionadas se conservan.
+- Una ejecución reanudada omite registros completos o de estado incierto.
+- Los archivos solo se eliminan después de validar el PDF.
+- No se borran automáticamente registros ya guardados en el portal.
 
-### 1. Clonar el repositorio
+## Pruebas
 
 ```bash
-git clone https://github.com/gingofet/camara_cctv_psinet.git
-cd camara_cctv_psinet
+python -m unittest discover -s tests -v
+python -m compileall -q cctvflow tests cctvflow_gui.py
 ```
 
-### 2. Crear y activar el entorno virtual
+La prueba de identidad también evita que la antigua marca externa reaparezca
+en nombres de archivo, código, configuración o documentación.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
+## Autoría
 
-En PowerShell:
+Copyright © 2026 Louis Rivera Ovalle. Todos los derechos reservados.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-### 3. Instalar dependencias
-
-```bash
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-playwright install chromium
-```
-
-### 4. Configurar credenciales
-
-Crea un archivo `.env` en la raíz del proyecto:
-
-```dotenv
-PSINET_URL=https://suite.apps.psinet.cl/login
-PSINET_USER=usuario@ejemplo.cl
-PSINET_PASS=contraseña
-```
-
-El archivo `.env` está excluido de Git y no debe publicarse.
-
-### 5. Agregar las fotografías de la ART
-
-Guarda las imágenes como:
-
-```text
-automatizacion/data/art/ART.jpg
-automatizacion/data/art/ART_atras.jpg
-```
-
-### 6. Ejecutar
-
-```bash
-python -m psinet_auto_manual
-```
-
-## Validaciones locales
-
-Compila solamente el código del proyecto para evitar que `compileall` inspeccione
-plantillas internas de paquetes instalados en `.venv`:
-
-```bash
-python -m compileall -q automatizacion psinet utils \
-  lector_fotos.py psinet_auto.py psinet_auto_manual.py
-python -m json.tool automatizacion/data/sectores_drt.json > /dev/null
-```
-
-## Arquitectura futura
-
-La evolución prevista es una arquitectura híbrida:
-
-- **CCTVFlow Web:** usuarios, roles, dispositivos, trabajos, historial y PDFs.
-- **Agente local:** Playwright visible, credenciales PSINet locales, fotografías
-  y descarga de informes.
-- **Aplicación Android:** captura y nombrado correcto de evidencias en terreno.
-
-El motor Playwright continuará ejecutándose en el equipo del usuario, no en el
-servidor.
-
-Consulta el avance y las siguientes tareas en [`todo.md`](todo.md).
-
-## Tecnologías
-
-- Python
-- Playwright
-- Chromium
-- PySide6
-- Git y GitHub
-
-## Seguridad
-
-- No publiques `.env`, credenciales, fotografías operacionales ni PDFs.
-- Mantén las credenciales de PSINet únicamente en el equipo local.
-- Revisa siempre `git status` antes de crear un commit.
-
-## Licencia
-
-Este repositorio no incluye todavía una licencia de uso. El código permanece
-bajo los derechos de su autor.
+Consulta [CODE_REVIEW.md](CODE_REVIEW.md) para conocer las decisiones de la
+reestructuración y [ROADMAP.md](ROADMAP.md) para los pendientes.

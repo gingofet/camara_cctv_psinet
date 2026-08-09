@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from pypdf import PdfWriter
 
-from gui.checkpoint import (
+from cctvflow.checkpoint import (
     ESTADO_COMPLETADO,
     ESTADO_EN_PROCESO,
     ESTADO_INCOMPLETO,
@@ -19,25 +19,28 @@ from gui.checkpoint import (
     plan_pendiente,
     resumen_checkpoint,
 )
-from gui.planificador import MantenimientoPlanificado
-from psinet.checklist import (
+from cctvflow.models import MantenimientoPlanificado
+from cctvflow.portal.checklist_rules import (
     estados_conexiones,
     variantes_item_conexiones,
 )
-from psinet.descargas import (
+from cctvflow.portal.reports import (
     PdfMantenimientoIncompletoError,
     validar_pdf_mantenimiento,
 )
-from psinet.fotos import selector_input_foto
-from psinet.manual import esperar_confirmacion_manual
+from cctvflow.portal.photo_fields import selector_input_foto
+from cctvflow.portal.manual import esperar_confirmacion_manual
 
 try:
-    from gui.worker import EjecucionDetenidaError, EjecutorPSINet
+    from cctvflow.ui.runner import (
+        EjecucionDetenidaError,
+        EjecutorMantenimientos,
+    )
 except ModuleNotFoundError as error:
     if error.name != "PySide6":
         raise
     EjecucionDetenidaError = None
-    EjecutorPSINet = None
+    EjecutorMantenimientos = None
 
 
 class ConfirmacionManualTest(unittest.TestCase):
@@ -46,20 +49,20 @@ class ConfirmacionManualTest(unittest.TestCase):
 
         with patch("builtins.input") as entrada:
             esperar_confirmacion_manual(
-                "Selecciona la cámara en PSINet.",
+                "Selecciona la cámara en el portal.",
                 mensajes.append,
             )
 
         entrada.assert_not_called()
         self.assertEqual(
             mensajes,
-            ["Selecciona la cámara en PSINet."],
+            ["Selecciona la cámara en el portal."],
         )
 
     def test_terminal_conserva_input_como_respaldo(self) -> None:
         with patch("builtins.input", return_value="") as entrada:
             esperar_confirmacion_manual(
-                "Selecciona la cámara en PSINet."
+                "Selecciona la cámara en el portal."
             )
 
         entrada.assert_called_once()
@@ -233,12 +236,12 @@ class CheckpointEjecucionTest(unittest.TestCase):
 
 
 @unittest.skipIf(
-    EjecutorPSINet is None,
+    EjecutorMantenimientos is None,
     "PySide6 no está instalado en el entorno de pruebas.",
 )
 class ContinuidadLoteTest(unittest.TestCase):
     def test_detener_desbloquea_una_confirmacion_manual(self) -> None:
-        ejecutor = EjecutorPSINet(
+        ejecutor = EjecutorMantenimientos(
             division="DRT",
             plan=[],
             participantes=["Louis Rivera"],
@@ -312,7 +315,7 @@ class ContinuidadLoteTest(unittest.TestCase):
             )
             pdf_incompleto = carpeta / "incompleto.pdf"
             pdf_correcto = carpeta / "correcto.pdf"
-            ejecutor = EjecutorPSINet(
+            ejecutor = EjecutorMantenimientos(
                 division="DRT",
                 plan=plan,
                 participantes=["Louis Rivera"],
@@ -342,11 +345,11 @@ class ContinuidadLoteTest(unittest.TestCase):
 
             with (
                 patch(
-                    "gui.worker.iniciar_navegador",
+                    "cctvflow.ui.runner.iniciar_navegador",
                     return_value=contextlib.nullcontext(object()),
                 ),
-                patch("gui.worker.login_psinet"),
-                patch("gui.worker.crear_mantenimiento"),
+                patch("cctvflow.ui.runner.iniciar_sesion"),
+                patch("cctvflow.ui.runner.crear_mantenimiento"),
                 patch.object(
                     ejecutor,
                     "_guardar_y_descargar",

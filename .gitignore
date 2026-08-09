@@ -1,32 +1,27 @@
-# Credenciales
+# Configuración y entornos locales
 .env
-automatizacion/.env
+.venv/
 
-# Fotos y evidencias
-*.png
+# Python y herramientas
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Datos operacionales
 *.jpg
 *.jpeg
+*.png
 *.webp
+*.pdf
 
+# Salidas generadas
+runtime/*
+!runtime/.gitkeep
+downloads/*
+!downloads/.gitkeep
+cctvflow/resources/art/*
+!cctvflow/resources/art/.gitkeep
 
-# Carpetas de trabajo
-automatizacion/fotos/
-downloads/
-automatizacion/evidencias.json
-
-# Archivos generados
-automatizacion/plan_ejecucion.json
-
-# Python
-__pycache__/
-*.pyc
-
-# Playwright
+# Navegador
 .playwright/
-
-
-.venv/
-__pycache__/
-*.pyc
-runtime/*.json
-runtime/fotos/

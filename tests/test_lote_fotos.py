@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gui.lote_fotos import analizar_carpeta, validar_lote
+from cctvflow.photo_batch import analizar_carpeta, validar_lote
 
 
 class LoteFotosTest(unittest.TestCase):
