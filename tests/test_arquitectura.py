@@ -23,6 +23,39 @@ EXTENSIONES_TEXTO = {
 }
 ARCHIVOS_ADICIONALES = {".env.example", ".gitignore"}
 TERMINO_NO_PERMITIDO = "".join(("psi", "net"))
+DIRECTORIOS_MANTENIDOS = ("cctvflow", "tests")
+ARCHIVOS_RAIZ_MANTENIDOS = {
+    ".env.example",
+    ".gitignore",
+    "CODE_REVIEW.md",
+    "README.md",
+    "ROADMAP.md",
+    "cctvflow_gui.py",
+    "pyproject.toml",
+    "requirements.txt",
+}
+
+
+def iterar_archivos_mantenidos() -> list[Path]:
+    """Devuelve solo archivos que forman parte mantenida de CCTVFlow.
+
+    Los datos de ``runtime``, las descargas y otros proyectos vecinos no son
+    código de esta aplicación y no deben volver no determinista esta prueba.
+    """
+    archivos: list[Path] = []
+
+    for directorio in DIRECTORIOS_MANTENIDOS:
+        raiz = ROOT / directorio
+        if raiz.is_dir():
+            archivos.extend(ruta for ruta in raiz.rglob("*") if ruta.is_file())
+
+    archivos.extend(
+        ROOT / nombre
+        for nombre in ARCHIVOS_RAIZ_MANTENIDOS
+        if (ROOT / nombre).is_file()
+    )
+
+    return archivos
 
 
 class ArquitecturaTest(unittest.TestCase):
@@ -90,14 +123,11 @@ class ArquitecturaTest(unittest.TestCase):
     def test_no_reaparece_la_identidad_externa_anterior(self) -> None:
         infracciones: list[str] = []
 
-        for ruta in ROOT.rglob("*"):
-            if not ruta.is_file():
-                continue
-
+        for ruta in iterar_archivos_mantenidos():
             relativa = ruta.relative_to(ROOT)
 
             if any(
-                parte in {".git", ".venv", "__pycache__"}
+                parte in {"__pycache__"}
                 for parte in relativa.parts
             ):
                 continue
