@@ -20,6 +20,7 @@ de control para continuar después de una interrupción.
 - Descarga y validación del número de páginas del PDF.
 - Continuación del lote cuando un informe sale incompleto.
 - Checkpoint para reanudar únicamente cámaras que nunca comenzaron.
+- Fecha de mantenimiento configurable para registrar trabajos históricos.
 - Eliminación opcional de evidencias solo después de validar el informe.
 
 ## Arquitectura
@@ -105,6 +106,11 @@ El comando histórico continúa disponible durante la transición:
 ```bash
 python -m cctvflow_gui
 ```
+
+La fecha de mantenimiento comienza en el día actual. Para cargar trabajo
+atrasado, selecciónala en el calendario antes de ejecutar. CCTVFlow escribe la
+misma fecha en todas las cámaras del lote y la conserva si luego se usa
+**Reanudar pendientes**. Por seguridad, la interfaz no admite fechas futuras.
 
 ## Fotografías
 

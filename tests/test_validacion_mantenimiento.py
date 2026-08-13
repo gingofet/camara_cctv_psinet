@@ -170,6 +170,7 @@ class CheckpointEjecucionTest(unittest.TestCase):
     def _crear(self, ruta: Path) -> None:
         crear_checkpoint(
             division="DRT",
+            fecha_mantenimiento="2026-07-28",
             plan=self.plan,
             participantes=["Louis Rivera"],
             apr_participa=False,
@@ -302,6 +303,7 @@ class ContinuidadLoteTest(unittest.TestCase):
             }
             crear_checkpoint(
                 division="DRT",
+                fecha_mantenimiento="2026-07-28",
                 plan=plan,
                 participantes=["Louis Rivera"],
                 apr_participa=False,
@@ -317,6 +319,7 @@ class ContinuidadLoteTest(unittest.TestCase):
             pdf_correcto = carpeta / "correcto.pdf"
             ejecutor = EjecutorMantenimientos(
                 division="DRT",
+                fecha_mantenimiento="2026-07-28",
                 plan=plan,
                 participantes=["Louis Rivera"],
                 apr_participa=False,

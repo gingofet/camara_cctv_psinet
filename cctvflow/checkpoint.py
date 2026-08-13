@@ -10,11 +10,14 @@ from pathlib import Path
 from typing import Any
 
 from cctvflow.config import RUNTIME_DIR
-from cctvflow.models import MantenimientoPlanificado
+from cctvflow.models import (
+    MantenimientoPlanificado,
+    normalizar_fecha_mantenimiento,
+)
 
 
 CHECKPOINT_PATH = RUNTIME_DIR / "ejecucion_pendiente.json"
-VERSION_CHECKPOINT = 1
+VERSION_CHECKPOINT = 2
 
 ESTADO_PENDIENTE = "pendiente"
 ESTADO_EN_PROCESO = "en_proceso"
@@ -40,6 +43,7 @@ def _escribir_atomico(datos: dict[str, Any], ruta: Path) -> None:
 def crear_checkpoint(
     *,
     division: str,
+    fecha_mantenimiento: str,
     plan: list[MantenimientoPlanificado],
     participantes: list[str],
     apr_participa: bool,
@@ -61,6 +65,9 @@ def crear_checkpoint(
         "actualizado": marca_tiempo,
         "division": division,
         "configuracion": {
+            "fecha_mantenimiento": normalizar_fecha_mantenimiento(
+                fecha_mantenimiento
+            ),
             "participantes": participantes,
             "apr_participa": apr_participa,
             "equipo_alza_hombre": equipo_alza_hombre,
@@ -100,10 +107,26 @@ def cargar_checkpoint(
             f"No fue posible leer el punto de control: {origen}"
         ) from error
 
-    if datos.get("version") != VERSION_CHECKPOINT:
+    version = datos.get("version")
+
+    try:
+        if version == 1:
+            # La versión anterior siempre ejecutaba con la fecha de creación.
+            # Recuperarla desde la marca de tiempo evita que una reanudación
+            # histórica cambie silenciosamente al día actual.
+            fecha_anterior = str(datos.get("creado", "")).split("T", 1)[0]
+            datos.setdefault("configuracion", {})[
+                "fecha_mantenimiento"
+            ] = normalizar_fecha_mantenimiento(fecha_anterior)
+            datos["version"] = VERSION_CHECKPOINT
+        elif version != VERSION_CHECKPOINT:
+            raise RuntimeError(
+                "El punto de control pertenece a una versión incompatible."
+            )
+    except ValueError as error:
         raise RuntimeError(
-            "El punto de control pertenece a una versión incompatible."
-        )
+            "El punto de control contiene una fecha inválida."
+        ) from error
 
     campos = {
         "division",
@@ -116,6 +139,24 @@ def cargar_checkpoint(
 
     if not campos.issubset(datos):
         raise RuntimeError("El punto de control está incompleto.")
+
+    configuracion = datos["configuracion"]
+
+    if "fecha_mantenimiento" not in configuracion:
+        raise RuntimeError(
+            "El punto de control no contiene la fecha de mantenimiento."
+        )
+
+    try:
+        configuracion["fecha_mantenimiento"] = (
+            normalizar_fecha_mantenimiento(
+                configuracion["fecha_mantenimiento"]
+            )
+        )
+    except ValueError as error:
+        raise RuntimeError(
+            "El punto de control contiene una fecha inválida."
+        ) from error
 
     return datos
 

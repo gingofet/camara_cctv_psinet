@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QThread, QTime, QTimer, Qt, Slot
+from PySide6.QtCore import QDate, QThread, QTime, QTimer, Qt, Slot
 from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import (
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDateEdit,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -124,6 +125,14 @@ class VentanaCCTVFlow(QMainWindow):
         self.combo_sector = QComboBox()
         self.busqueda = QLineEdit()
         self.busqueda.setPlaceholderText("Filtrar por nombre o código...")
+        self.fecha_mantenimiento = QDateEdit()
+        self.fecha_mantenimiento.setCalendarPopup(True)
+        self.fecha_mantenimiento.setDisplayFormat("dd-MM-yyyy")
+        self.fecha_mantenimiento.setDate(QDate.currentDate())
+        self.fecha_mantenimiento.setMaximumDate(QDate.currentDate())
+        self.fecha_mantenimiento.setToolTip(
+            "Fecha real en que se realizó el mantenimiento."
+        )
         self.hora_inicio = QTimeEdit()
         self.hora_inicio.setDisplayFormat("HH:mm")
         self.hora_inicio.setTime(QTime.currentTime())
@@ -156,6 +165,7 @@ class VentanaCCTVFlow(QMainWindow):
         formulario.addRow("División", self.combo_division)
         formulario.addRow("Sector", self.combo_sector)
         formulario.addRow("Buscar cámara", self.busqueda)
+        formulario.addRow("Fecha de mantenimiento", self.fecha_mantenimiento)
         formulario.addRow("Hora inicial", self.hora_inicio)
         formulario.addRow("Duración por cámara", self.duracion)
         formulario.addRow("Participantes", self.participantes)
@@ -616,6 +626,9 @@ class VentanaCCTVFlow(QMainWindow):
     def _observacion(self) -> str:
         return self.observacion.currentText().strip() or OBSERVACION_DEFAULT
 
+    def _fecha_mantenimiento(self) -> str:
+        return self.fecha_mantenimiento.date().toString(Qt.DateFormat.ISODate)
+
     @Slot()
     def _cambiar_division(self) -> None:
         if self.lote_fotos is not None:
@@ -889,7 +902,9 @@ class VentanaCCTVFlow(QMainWindow):
             self,
             "Iniciar ejecución",
             f"{descripcion}\n\n"
-            f"División: {self.combo_division.currentText()}.\n\n"
+            f"División: {self.combo_division.currentText()}.\n"
+            "Fecha de mantenimiento: "
+            f"{self.fecha_mantenimiento.date().toString('dd-MM-yyyy')}.\n\n"
             "¿Deseas abrir el portal de mantenimiento y continuar?",
         )
 
@@ -902,6 +917,7 @@ class VentanaCCTVFlow(QMainWindow):
             checkpoint_path = str(
                 crear_checkpoint(
                     division=self.combo_division.currentText(),
+                    fecha_mantenimiento=self._fecha_mantenimiento(),
                     plan=self.plan_actual.copy(),
                     participantes=self._participantes(),
                     apr_participa=self.apr.isChecked(),
@@ -923,6 +939,7 @@ class VentanaCCTVFlow(QMainWindow):
 
         self._lanzar_ejecutor(
             division=self.combo_division.currentText(),
+            fecha_mantenimiento=self._fecha_mantenimiento(),
             plan=self.plan_actual.copy(),
             participantes=self._participantes(),
             apr_participa=self.apr.isChecked(),
@@ -946,6 +963,7 @@ class VentanaCCTVFlow(QMainWindow):
         self,
         *,
         division: str,
+        fecha_mantenimiento: str,
         plan: list[MantenimientoPlanificado],
         participantes: list[str],
         apr_participa: bool,
@@ -963,6 +981,7 @@ class VentanaCCTVFlow(QMainWindow):
         self.resumen_ejecucion = {}
         self.ejecutor = EjecutorMantenimientos(
             division=division,
+            fecha_mantenimiento=fecha_mantenimiento,
             plan=plan,
             participantes=participantes,
             apr_participa=apr_participa,
@@ -1080,7 +1099,10 @@ class VentanaCCTVFlow(QMainWindow):
             "Reanudar ejecución",
             f"Se ejecutarán únicamente {len(plan)} cámara(s) que nunca "
             "alcanzaron a iniciarse. Las completadas se omitirán."
-            f"{aviso_revision}\n\n¿Deseas continuar?",
+            f"{aviso_revision}\n\n"
+            "Fecha de mantenimiento conservada: "
+            f"{datos['configuracion']['fecha_mantenimiento']}.\n\n"
+            "¿Deseas continuar?",
         )
 
         if confirmacion != QMessageBox.StandardButton.Yes:
@@ -1095,10 +1117,16 @@ class VentanaCCTVFlow(QMainWindow):
         self.apr.setChecked(configuracion["apr_participa"])
         self.alza.setChecked(configuracion["equipo_alza_hombre"])
         self.observacion.setCurrentText(configuracion["observacion"])
+        fecha_mantenimiento = QDate.fromString(
+            configuracion["fecha_mantenimiento"],
+            Qt.DateFormat.ISODate,
+        )
+        self.fecha_mantenimiento.setDate(fecha_mantenimiento)
         self.checkpoint_activo = str(CHECKPOINT_PATH)
         self.lote_completo_en_ejecucion = False
         self._lanzar_ejecutor(
             division=division,
+            fecha_mantenimiento=configuracion["fecha_mantenimiento"],
             plan=plan,
             participantes=list(configuracion["participantes"]),
             apr_participa=configuracion["apr_participa"],
@@ -1127,6 +1155,7 @@ class VentanaCCTVFlow(QMainWindow):
             self.combo_sector,
             self.busqueda,
             self.lista_camaras,
+            self.fecha_mantenimiento,
             self.hora_inicio,
             self.duracion,
             self.participantes,

@@ -187,18 +187,21 @@ def crear_mantenimiento(
             f"Modo de navegación no válido: {modo_navegacion}"
         )
 
-    crear_tarea_base(
+    fecha_aplicada = crear_tarea_base(
         page,
         solicitud.area_busqueda,
         solicitud.area,
+        solicitud.fecha_mantenimiento,
         solicitud.ubicacion_portal,
         confirmar_manual,
     )
     crear_actividad(
         page,
+        solicitud.fecha_mantenimiento,
         solicitud.hora_inicio,
         solicitud.hora_fin,
         solicitud.participantes,
+        fecha_aplicada,
         confirmar_manual,
     )
     completar_estado_general(page)

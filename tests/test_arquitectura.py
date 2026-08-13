@@ -39,6 +39,26 @@ class ArquitecturaTest(unittest.TestCase):
                 area_busqueda="CAMARA",
                 division="DRT",
                 ubicacion_portal="DRT",
+                fecha_mantenimiento="2026-07-28",
+                hora_inicio="01:00",
+                hora_fin="01:10",
+                participantes=("Louis Rivera",),
+                apr_participa=False,
+                equipo_alza_hombre=False,
+                fotos=(),
+                observacion="Mantenimiento",
+                dejar_campo_extra=False,
+                camara_ip=True,
+            )
+
+    def test_solicitud_rechaza_fecha_futura(self) -> None:
+        with self.assertRaisesRegex(ValueError, "futuro"):
+            SolicitudMantenimiento(
+                area="CAMARA",
+                area_busqueda="CAMARA",
+                division="DRT",
+                ubicacion_portal="DRT",
+                fecha_mantenimiento="2999-01-01",
                 hora_inicio="01:00",
                 hora_fin="01:10",
                 participantes=("Louis Rivera",),

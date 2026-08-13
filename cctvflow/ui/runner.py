@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+from datetime import date
 import io
 from pathlib import Path
 import threading
@@ -22,6 +23,7 @@ from cctvflow.checkpoint import (
 from cctvflow.models import (
     MantenimientoPlanificado,
     SolicitudMantenimiento,
+    normalizar_fecha_mantenimiento,
 )
 from cctvflow.planning import ubicacion_portal
 from cctvflow.portal.reports import (
@@ -83,6 +85,7 @@ class EjecutorMantenimientos(QObject):
         equipo_alza_hombre: bool,
         fotos_art: list[str],
         observacion: str,
+        fecha_mantenimiento: str | None = None,
         fotos_por_camara: dict[str, list[str]] | None = None,
         fotos_art_por_sector: dict[str, list[str]] | None = None,
         eliminar_fotos_tras_exito: bool = False,
@@ -97,6 +100,9 @@ class EjecutorMantenimientos(QObject):
         self.equipo_alza_hombre = equipo_alza_hombre
         self.fotos_art = fotos_art
         self.observacion = observacion
+        self.fecha_mantenimiento = normalizar_fecha_mantenimiento(
+            fecha_mantenimiento or date.today().isoformat()
+        )
         self.fotos_por_camara = fotos_por_camara or {}
         self.fotos_art_por_sector = fotos_art_por_sector or {}
         self.eliminar_fotos_tras_exito = eliminar_fotos_tras_exito
@@ -266,6 +272,7 @@ class EjecutorMantenimientos(QObject):
                             area_busqueda=item.camara,
                             division=self.division,
                             ubicacion_portal=ubicacion,
+                            fecha_mantenimiento=self.fecha_mantenimiento,
                             hora_inicio=item.hora_inicio,
                             hora_fin=item.hora_fin,
                             participantes=tuple(self.participantes),

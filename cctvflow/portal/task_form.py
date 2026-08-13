@@ -22,6 +22,7 @@ from cctvflow.portal.controls import (
     activar_control_etiquetado,
     patron_texto_exacto,
 )
+from cctvflow.portal.date_fields import establecer_fecha_mantenimiento
 from cctvflow.portal.manual import (
     ConfirmacionManual,
     esperar_confirmacion_manual,
@@ -104,9 +105,10 @@ def crear_tarea_base(
     page: Page,
     area_busqueda: str,
     nombre_portal: str,
+    fecha_mantenimiento: str,
     ubicacion_portal: str = UBICACION_PORTAL_DEFAULT,
     confirmar_manual: ConfirmacionManual | None = None,
-) -> None:
+) -> bool:
     """Completa el formulario inicial y crea la tarea."""
 
     page.get_by_label("", exact=True).nth(1).click()
@@ -131,9 +133,16 @@ def crear_tarea_base(
     page.locator(
         'input[name="text_observacion_tarea"]'
     ).fill(OBSERVACION_DEFAULT)
+    fecha_aplicada = bool(
+        establecer_fecha_mantenimiento(
+            page.locator("#forms_add_tarea"),
+            fecha_mantenimiento,
+        )
+    )
     print("Voy a presionar Ingresar para crear la tarea base...")
     page.get_by_role("button", name="Ingresar", exact=True).click()
     page.wait_for_load_state("networkidle")
+    return fecha_aplicada
 
 
 def _seleccionar_opcion_select2(
@@ -245,9 +254,11 @@ def seleccionar_participantes(
 
 def crear_actividad(
     page: Page,
+    fecha_mantenimiento: str,
     hora_inicio: str,
     hora_fin: str,
     participantes: Sequence[str],
+    fecha_aplicada_previamente: bool = False,
     confirmar_manual: ConfirmacionManual | None = None,
 ) -> None:
     """Crea la actividad asociada y asigna sus participantes."""
@@ -260,6 +271,27 @@ def crear_actividad(
         TIPO_ACTIVIDAD_DEFAULT,
     )
     _seleccionar_opcion_select2(page, "Causa:", CAUSA_DEFAULT)
+    campo_hora = page.locator("#time_inicio_actividad")
+    formulario_actividad = page.locator("#forms_add_actividad")
+
+    if formulario_actividad.count() == 0:
+        formulario_actividad = campo_hora.locator(
+            "xpath=ancestor::*["
+            "self::form or contains(@class, 'modal')"
+            "][1]"
+        )
+    fecha_aplicada = establecer_fecha_mantenimiento(
+        formulario_actividad,
+        fecha_mantenimiento,
+    )
+
+    if not fecha_aplicada and not fecha_aplicada_previamente:
+        esperar_confirmacion_manual(
+            "No pude identificar el campo de fecha. Ingresa manualmente "
+            f"la fecha {fecha_mantenimiento} antes de continuar.",
+            confirmar_manual,
+        )
+
     page.locator("#time_inicio_actividad").fill(hora_inicio)
     page.locator('input[name="time_cierre_actividad"]').fill(hora_fin)
     page.locator(
