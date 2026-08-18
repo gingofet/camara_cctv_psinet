@@ -1,7 +1,8 @@
-"""Configuración funcional y rutas persistentes de CCTVFlow."""
+"""Configuración funcional, recursos y rutas persistentes de CCTVFlow."""
 
+import os
+import sys
 from pathlib import Path
-
 
 # Rutas calculadas desde el paquete para no depender del directorio actual.
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -9,8 +10,20 @@ PROJECT_ROOT = PACKAGE_DIR.parent
 RESOURCES_DIR = PACKAGE_DIR / "resources"
 CATALOGS_DIR = RESOURCES_DIR / "catalogs"
 ART_DIR = RESOURCES_DIR / "art"
-RUNTIME_DIR = PROJECT_ROOT / "runtime"
-REPORTS_DIR = PROJECT_ROOT / "downloads" / "pdfs"
+
+
+def _frozen_data_dir() -> Path:
+    if sys.platform == "win32":
+        root = Path(os.getenv("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    else:
+        root = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    return root / "CCTVFlow"
+
+
+APP_DATA_DIR = _frozen_data_dir() if getattr(sys, "frozen", False) else PROJECT_ROOT
+LOCAL_ENV_PATH = APP_DATA_DIR / ".env"
+RUNTIME_DIR = APP_DATA_DIR / "runtime"
+REPORTS_DIR = APP_DATA_DIR / "downloads" / "pdfs"
 
 DIVISIONES = {
     "DCH-SUBTE": {
@@ -47,6 +60,7 @@ def obtener_ruta_sectores(division: str) -> Path:
 
     configuracion = obtener_configuracion_division(division)
     return CATALOGS_DIR / configuracion["archivo_sectores"]
+
 
 OBSERVACION_DEFAULT = "Mantenimiento CCTV"
 

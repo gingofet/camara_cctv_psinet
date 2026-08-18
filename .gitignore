@@ -25,3 +25,9 @@ cctvflow/resources/art/*
 
 # Navegador
 .playwright/
+
+# Empaquetado standalone
+build/
+dist/
+.venv-build-windows/
+*.spec.bak

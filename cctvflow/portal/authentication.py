@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from cctvflow.config import LOCAL_ENV_PATH
+
 if TYPE_CHECKING:
     from playwright.sync_api import Page
 
@@ -21,7 +23,7 @@ def obtener_credenciales() -> tuple[str, str, str]:
         # en entornos mínimos que aún no instalaron las dependencias de la app.
         from dotenv import load_dotenv
 
-        load_dotenv()
+        load_dotenv(dotenv_path=LOCAL_ENV_PATH)
         url = os.getenv("CCTVFLOW_PORTAL_URL")
         usuario = os.getenv("CCTVFLOW_PORTAL_USER")
         password = os.getenv("CCTVFLOW_PORTAL_PASSWORD")

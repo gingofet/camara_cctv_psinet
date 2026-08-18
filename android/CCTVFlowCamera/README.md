@@ -46,7 +46,7 @@ Pictures/CCTVFlow/DRT/Turno_A/
 Después puedes copiar esa carpeta hacia:
 
 ```text
-camara_cctv_psinet/automatizacion/fotos/
+CCTVFlow/fotos/
 ```
 
 y ejecutar el lector habitual.

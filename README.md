@@ -22,6 +22,8 @@ de control para continuar después de una interrupción.
 - Checkpoint para reanudar únicamente cámaras que nunca comenzaron.
 - Fecha de mantenimiento configurable para registrar trabajos históricos.
 - Eliminación opcional de evidencias solo después de validar el informe.
+- Conexión opcional con CCTVFlow Web mediante un token revocable por equipo.
+- Sincronización exclusiva de estados y metadatos; nunca sube fotos ni PDF.
 
 ## Arquitectura
 
@@ -83,10 +85,24 @@ Copia `.env.example` como `.env` y completa los datos del portal:
 CCTVFLOW_PORTAL_URL=https://direccion-del-portal/login
 CCTVFLOW_PORTAL_USER=usuario@ejemplo.cl
 CCTVFLOW_PORTAL_PASSWORD=contraseña
+CCTVFLOW_SERVER_URL=https://cctvflow-mindcel.duckdns.org
+CCTVFLOW_AGENT_TOKEN=cctvflow_agent_TOKEN_ENTREGADO_POR_EL_SERVIDOR
 ```
 
 El archivo `.env` está excluido de Git. No publiques credenciales, fotografías
 operacionales ni informes.
+
+Las variables del servidor son opcionales. Si no están configuradas, CCTVFlow
+continúa funcionando en modo exclusivamente local. En el ejecutable de
+Windows, el archivo se guarda en:
+
+```text
+%LOCALAPPDATA%\CCTVFlow\.env
+```
+
+El agente solo informa identificador de evento, fecha, cámara, división,
+estado, cantidad de fotos y metadatos del PDF (nombre, hash y páginas). Las
+credenciales del portal, fotos, rutas locales y contenido del PDF no se envían.
 
 Guarda las fotografías permanentes del ART en:
 
@@ -109,8 +125,9 @@ python -m cctvflow_gui
 
 La fecha de mantenimiento comienza en el día actual. Para cargar trabajo
 atrasado, selecciónala en el calendario antes de ejecutar. CCTVFlow escribe la
-misma fecha en todas las cámaras del lote y la conserva si luego se usa
-**Reanudar pendientes**. Por seguridad, la interfaz no admite fechas futuras.
+misma fecha en todas las cámaras del lote, la envía como fecha de auditoría al
+servidor y la conserva si luego se usa **Reanudar pendientes**. Por seguridad,
+la interfaz no admite fechas futuras.
 
 ## Fotografías
 
@@ -150,6 +167,25 @@ runtime/ejecucion_pendiente.json
 python -m unittest discover -s tests -v
 python -m compileall -q cctvflow tests cctvflow_gui.py
 ```
+
+## Paquete standalone para Windows
+
+El paquete se construye de forma nativa en Windows e incluye Chromium. No
+contiene `.env`, tokens, fotografías, ART ni informes operacionales.
+
+```powershell
+.\packaging\windows\build.ps1
+```
+
+El resultado queda en:
+
+```text
+dist\CCTVFlow-Windows-x64.zip
+```
+
+También puede iniciarse manualmente el workflow `Build Windows agent` desde
+GitHub Actions. El ejecutable principal queda dentro de la carpeta `CCTVFlow`
+del ZIP.
 
 La prueba de identidad también evita que la antigua marca externa reaparezca
 en nombres de archivo, código, configuración o documentación.
