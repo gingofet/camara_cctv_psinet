@@ -23,6 +23,9 @@ de control para continuar después de una interrupción.
 - Fecha de mantenimiento configurable para registrar trabajos históricos.
 - Eliminación opcional de evidencias solo después de validar el informe.
 - Conexión opcional con CCTVFlow Web mediante un token revocable por equipo.
+- Inicio de sesión con la cuenta Web al abrir el agente; la contraseña no se guarda.
+- Tema visual Sistema, Oscuro o Claro con preferencia persistente.
+- Distribución adaptable que conserva los controles al maximizar la ventana.
 - Sincronización exclusiva de estados y metadatos; nunca sube fotos ni PDF.
 
 ## Arquitectura
@@ -116,6 +119,14 @@ cctvflow/resources/art/ART_atras.jpg
 ```bash
 python -m cctvflow
 ```
+
+Al abrir, CCTVFlow solicita la misma cuenta configurada en la Web. El token
+identifica el equipo y la contraseña valida a la persona; la contraseña solo se
+envía por HTTPS y no se persiste. Si el servidor no está disponible, **Trabajar
+sin conexión** conserva la automatización local sin sincronizar auditoría.
+
+El selector **Tema** permite seguir la apariencia del sistema o forzar el modo
+Oscuro o Claro. La elección se conserva para la siguiente ejecución.
 
 El comando histórico continúa disponible durante la transición:
 

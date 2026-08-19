@@ -8,6 +8,7 @@ from pathlib import Path
 from pypdf import PdfWriter
 
 from cctvflow.server_client import (
+    AgentIdentity,
     CCTVFlowServerClient,
     ServerClientError,
     build_maintenance_event,
@@ -57,6 +58,42 @@ class ServerClientTest(unittest.TestCase):
             "Bearer cctvflow_agent_secreto",
         )
         self.assertNotIn("token", captured["payload"])
+
+    def test_login_envia_credenciales_por_https_y_devuelve_identidad(self) -> None:
+        captured = {}
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["payload"] = json.loads(request.data.decode())
+            return _Response(
+                {
+                    "device_id": 7,
+                    "device_name": "Notebook Louis",
+                    "username": "louis",
+                    "display_name": "Louis Rivera",
+                    "role": "owner",
+                }
+            )
+
+        client = CCTVFlowServerClient(
+            "https://cctvflow.invalid",
+            "cctvflow_agent_secreto",
+            opener=opener,
+        )
+        identity = client.login("louis", "contraseña-no-guardada")
+
+        self.assertEqual(
+            identity,
+            AgentIdentity(
+                7,
+                "Notebook Louis",
+                "louis",
+                "Louis Rivera",
+                "owner",
+            ),
+        )
+        self.assertTrue(captured["url"].startswith("https://"))
+        self.assertEqual(captured["payload"]["username"], "louis")
 
     def test_evento_de_checkpoint_es_idempotente(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

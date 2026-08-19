@@ -26,6 +26,19 @@ from cctvflow.models import normalizar_fecha_mantenimiento
 class ServerClientError(RuntimeError):
     """Error controlado de configuración o comunicación con el servidor."""
 
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+@dataclass(frozen=True, slots=True)
+class AgentIdentity:
+    device_id: int
+    device_name: str
+    username: str
+    display_name: str
+    role: str
+
 
 @dataclass(frozen=True, slots=True)
 class MaintenanceEvent:
@@ -99,7 +112,8 @@ class CCTVFlowServerClient:
             except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
                 pass
             raise ServerClientError(
-                f"El servidor rechazó la solicitud: {detail}"
+                f"El servidor rechazó la solicitud: {detail}",
+                status_code=error.code,
             ) from error
         except (URLError, TimeoutError) as error:
             raise ServerClientError(
@@ -123,6 +137,28 @@ class CCTVFlowServerClient:
                 "agent_version": __version__,
             },
         )
+
+    def login(self, username: str, password: str) -> AgentIdentity:
+        result = self._request(
+            "POST",
+            "/api/v1/agent/login",
+            {
+                "username": username,
+                "password": password,
+            },
+        )
+        try:
+            return AgentIdentity(
+                device_id=int(result["device_id"]),
+                device_name=str(result["device_name"]),
+                username=str(result["username"]),
+                display_name=str(result["display_name"]),
+                role=str(result["role"]),
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise ServerClientError(
+                "El servidor no devolvió una identidad válida."
+            ) from error
 
     def report_maintenance(self, event: MaintenanceEvent) -> dict[str, Any]:
         return self._request(

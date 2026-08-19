@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QDate, QThread, QTime, QTimer, Qt, Slot
+from PySide6.QtCore import QDate, Qt, QThread, QTime, QTimer, Slot
 from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import (
@@ -14,10 +15,10 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QFileDialog,
-    QFormLayout,
+    QGridLayout,
     QGroupBox,
-    QHeaderView,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QSplitter,
     QTableWidget,
@@ -37,10 +39,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cctvflow.config import (
-    OBSERVACION_DEFAULT,
-    PARTICIPANTES_DEFAULT,
-)
 from cctvflow.checkpoint import (
     CHECKPOINT_PATH,
     ESTADO_EN_PROCESO,
@@ -51,12 +49,9 @@ from cctvflow.checkpoint import (
     plan_pendiente,
     resumen_checkpoint,
 )
-from cctvflow.planning import (
-    MantenimientoPlanificado,
-    cargar_catalogo,
-    divisiones_disponibles,
-    filtrar_camaras,
-    generar_plan,
+from cctvflow.config import (
+    OBSERVACION_DEFAULT,
+    PARTICIPANTES_DEFAULT,
 )
 from cctvflow.photo_batch import (
     EXTENSIONES_IMAGEN,
@@ -64,8 +59,19 @@ from cctvflow.photo_batch import (
     analizar_carpeta,
     validar_lote,
 )
+from cctvflow.planning import (
+    MantenimientoPlanificado,
+    cargar_catalogo,
+    divisiones_disponibles,
+    filtrar_camaras,
+    generar_plan,
+)
 from cctvflow.resources import obtener_fotos_art
 from cctvflow.ui.runner import EjecutorMantenimientos
+
+if TYPE_CHECKING:
+    from cctvflow.server_client import AgentIdentity, CCTVFlowServerClient
+    from cctvflow.ui.theme import ThemeController
 
 
 FILTRO_IMAGENES = "Imágenes (*.jpg *.jpeg *.png)"
@@ -79,10 +85,21 @@ RUTA_LOGO = Path(__file__).resolve().parent / "assets" / "cctvflow_logo.svg"
 
 
 class VentanaCCTVFlow(QMainWindow):
-    def __init__(self):
+    def __init__(
+        self,
+        theme_controller: ThemeController | None = None,
+        server_client: CCTVFlowServerClient | None = None,
+        server_autoconfigure: bool = True,
+        user_identity: AgentIdentity | None = None,
+    ):
         super().__init__()
+        self.theme_controller = theme_controller
+        self.server_client = server_client
+        self.server_autoconfigure = server_autoconfigure
+        self.user_identity = user_identity
         self.setWindowTitle("CCTVFlow")
-        self.resize(1180, 760)
+        self.resize(1180, 700)
+        self.setMinimumSize(980, 640)
 
         self.catalogo: dict[str, list[str]] = {}
         self.seleccionadas: set[str] = set()
@@ -106,19 +123,58 @@ class VentanaCCTVFlow(QMainWindow):
         central = QWidget()
         principal = QVBoxLayout(central)
 
+        encabezado = QHBoxLayout()
         logo = QSvgWidget(str(RUTA_LOGO))
         logo.setFixedSize(310, 70)
         logo.setAccessibleName(
             "CCTVFlow · Automatización de mantenimiento CCTV"
         )
-        principal.addWidget(
+        encabezado.addWidget(
             logo,
             0,
             Qt.AlignmentFlag.AlignLeft,
         )
+        encabezado.addStretch()
+
+        if self.user_identity is not None:
+            identity = QLabel(
+                f"{self.user_identity.display_name} · "
+                f"{self.user_identity.device_name}"
+            )
+            identity.setToolTip(
+                f"Sesión: {self.user_identity.username} · "
+                f"Rol: {self.user_identity.role}"
+            )
+            encabezado.addWidget(identity)
+
+        if self.theme_controller is not None:
+            from cctvflow.ui.theme import THEME_OPTIONS
+
+            encabezado.addWidget(QLabel("Tema"))
+            self.combo_tema = QComboBox()
+            self.combo_tema.setAccessibleName("Tema visual")
+            for label, value in THEME_OPTIONS:
+                self.combo_tema.addItem(label, value)
+            selected = self.combo_tema.findData(self.theme_controller.mode)
+            self.combo_tema.setCurrentIndex(max(0, selected))
+            self.combo_tema.setMinimumWidth(120)
+            encabezado.addWidget(self.combo_tema)
+
+        principal.addLayout(encabezado)
 
         configuracion = QGroupBox("Configuración")
-        formulario = QFormLayout(configuracion)
+        self.grupo_configuracion = configuracion
+        configuracion.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed,
+        )
+        formulario = QGridLayout(configuracion)
+        formulario.setColumnStretch(1, 1)
+        formulario.setColumnStretch(3, 1)
+        formulario.setColumnMinimumWidth(0, 135)
+        formulario.setColumnMinimumWidth(2, 145)
+        formulario.setHorizontalSpacing(10)
+        formulario.setVerticalSpacing(7)
 
         self.combo_division = QComboBox()
         self.combo_division.addItems(divisiones_disponibles())
@@ -162,18 +218,32 @@ class VentanaCCTVFlow(QMainWindow):
         fila_art_reverso.addWidget(self.art_reverso, 1)
         fila_art_reverso.addWidget(self.boton_art_reverso)
 
-        formulario.addRow("División", self.combo_division)
-        formulario.addRow("Sector", self.combo_sector)
-        formulario.addRow("Buscar cámara", self.busqueda)
-        formulario.addRow("Fecha de mantenimiento", self.fecha_mantenimiento)
-        formulario.addRow("Hora inicial", self.hora_inicio)
-        formulario.addRow("Duración por cámara", self.duracion)
-        formulario.addRow("Participantes", self.participantes)
-        formulario.addRow("APR participa", self.apr)
-        formulario.addRow("Equipo alza hombre", self.alza)
-        formulario.addRow("Observaciones", self.observacion)
-        formulario.addRow("ART anverso", fila_art_anverso)
-        formulario.addRow("ART reverso", fila_art_reverso)
+        filas_izquierda = (
+            ("División", self.combo_division),
+            ("Sector", self.combo_sector),
+            ("Buscar cámara", self.busqueda),
+            ("Participantes", self.participantes),
+            ("APR participa", self.apr),
+            ("Equipo alza hombre", self.alza),
+        )
+        for fila, (texto, control) in enumerate(filas_izquierda):
+            formulario.addWidget(QLabel(texto), fila, 0)
+            formulario.addWidget(control, fila, 1)
+
+        filas_derecha = (
+            ("Fecha de mantenimiento", self.fecha_mantenimiento),
+            ("Hora inicial", self.hora_inicio),
+            ("Duración por cámara", self.duracion),
+            ("Observaciones", self.observacion),
+        )
+        for fila, (texto, control) in enumerate(filas_derecha):
+            formulario.addWidget(QLabel(texto), fila, 2)
+            formulario.addWidget(control, fila, 3)
+
+        formulario.addWidget(QLabel("ART anverso"), 4, 2)
+        formulario.addLayout(fila_art_anverso, 4, 3)
+        formulario.addWidget(QLabel("ART reverso"), 5, 2)
+        formulario.addLayout(fila_art_reverso, 5, 3)
         principal.addWidget(configuracion)
 
         self._cargar_art_predeterminadas()
@@ -215,8 +285,9 @@ class VentanaCCTVFlow(QMainWindow):
 
         divisor.addWidget(bloque_camaras)
         divisor.addWidget(bloque_plan)
+        divisor.setChildrenCollapsible(False)
         divisor.setSizes([520, 660])
-        principal.addWidget(divisor, 1)
+        divisor.setMinimumHeight(125)
 
         self.pestanas = QTabWidget()
         panel_ejecucion = QWidget()
@@ -303,7 +374,17 @@ class VentanaCCTVFlow(QMainWindow):
         layout_fotos.addWidget(nota_eliminacion)
         self.pestanas.addTab(panel_fotos, "Fotografías")
 
-        principal.addWidget(self.pestanas)
+        self.pestanas.setMinimumHeight(170)
+
+        divisor_vertical = QSplitter(Qt.Orientation.Vertical)
+        self.divisor_vertical = divisor_vertical
+        divisor_vertical.setChildrenCollapsible(False)
+        divisor_vertical.addWidget(divisor)
+        divisor_vertical.addWidget(self.pestanas)
+        divisor_vertical.setStretchFactor(0, 1)
+        divisor_vertical.setStretchFactor(1, 2)
+        divisor_vertical.setSizes([190, 250])
+        principal.addWidget(divisor_vertical, 1)
 
         acciones = QHBoxLayout()
         self.boton_actualizar = QPushButton("Actualizar plan")
@@ -342,6 +423,10 @@ class VentanaCCTVFlow(QMainWindow):
         )
 
     def _conectar_eventos(self) -> None:
+        if self.theme_controller is not None:
+            self.combo_tema.currentIndexChanged.connect(
+                self._cambiar_tema
+            )
         self.combo_division.currentTextChanged.connect(
             self._cambiar_division
         )
@@ -372,6 +457,13 @@ class VentanaCCTVFlow(QMainWindow):
         self.boton_importar_fotos.clicked.connect(
             self._importar_carpeta_fotos
         )
+
+    @Slot()
+    def _cambiar_tema(self) -> None:
+        if self.theme_controller is not None:
+            self.theme_controller.set_mode(
+                str(self.combo_tema.currentData())
+            )
 
     def _cargar_art_predeterminadas(self) -> None:
         """Muestra las ART permanentes si están disponibles."""
@@ -993,6 +1085,8 @@ class VentanaCCTVFlow(QMainWindow):
             eliminar_fotos_tras_exito=eliminar_fotos_tras_exito,
             eliminar_art_tras_exito=eliminar_art_tras_exito,
             checkpoint_path=checkpoint_path,
+            server_client=self.server_client,
+            allow_server_autoconfigure=self.server_autoconfigure,
         )
         self.ejecutor.moveToThread(self.hilo)
         self.hilo.started.connect(self.ejecutor.ejecutar)

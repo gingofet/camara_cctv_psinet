@@ -1,3 +1,3 @@
 """CCTVFlow: automatización de mantenimiento preventivo CCTV."""
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"

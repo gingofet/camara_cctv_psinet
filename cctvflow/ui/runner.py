@@ -100,6 +100,7 @@ class EjecutorMantenimientos(QObject):
         eliminar_art_tras_exito: bool = False,
         checkpoint_path: str | None = None,
         server_client: CCTVFlowServerClient | None = None,
+        allow_server_autoconfigure: bool = True,
     ):
         super().__init__()
         self.division = division
@@ -118,6 +119,7 @@ class EjecutorMantenimientos(QObject):
         self.eliminar_art_tras_exito = eliminar_art_tras_exito
         self.checkpoint_path = checkpoint_path
         self.server_client = server_client
+        self.allow_server_autoconfigure = allow_server_autoconfigure
         self.modo_automatico = bool(self.fotos_por_camara)
         self._confirmacion_foto = threading.Event()
         self._esperando_confirmacion = threading.Event()
@@ -259,7 +261,7 @@ class EjecutorMantenimientos(QObject):
             self.resumen.emit(resumen_checkpoint(datos))
 
     def _conectar_servidor(self) -> None:
-        if self.server_client is None:
+        if self.server_client is None and self.allow_server_autoconfigure:
             self.server_client = configured_server_client()
 
         if self.server_client is None:
